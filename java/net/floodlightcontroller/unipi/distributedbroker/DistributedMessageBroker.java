@@ -27,7 +27,7 @@ import net.floodlightcontroller.unipi.rest.IDistributedBrokerREST;
 public class DistributedMessageBroker implements IOFMessageListener, IFloodlightModule, IDistributedBrokerREST {
 	
 	private final Logger logger = LoggerFactory.getLogger(DistributedMessageBroker.class);
-    // private final Logger loggerREST = LoggerFactory.getLogger(IMobilitySupportREST.class);
+    private final Logger loggerREST = LoggerFactory.getLogger(IDistributedBrokerREST.class);
 
     // Floodlight services used by the module.
     private IFloodlightProviderService floodlightProvider;
@@ -87,10 +87,10 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 
 	 @Override
-	    public void startUp(FloodlightModuleContext context) throws FloodlightModuleException {
-	        floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
-	        restApiService.addRestletRoutable(new DistributedBrokerWebRoutable());
-	    }
+	public void startUp(FloodlightModuleContext context) throws FloodlightModuleException {
+		floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
+		restApiService.addRestletRoutable(new DistributedBrokerWebRoutable());
+	}
 
 	@Override
 	public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
@@ -140,4 +140,15 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return null;
 	}
 
+	@Override
+	public String getResources() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String createResource() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

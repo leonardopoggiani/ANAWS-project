@@ -47,8 +47,8 @@ public class Subscriber extends ServerResource {
 				return result;
 			}
 			
-			IDistributedBrokerREST ms = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", ms.subscribeUser(username, MAC));
+			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
+			result.put("message", db.subscribeUser(username, MAC));
 			
 		} catch (IOException e) {
 			e.printStackTrace();

@@ -14,21 +14,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class User extends ServerResource {
-	/**
-	 * Retrieves the list of subscribed users.
-	 * @return  the list of subscribed users.
-	 */
+
 	@Get("json")
     public Map<String, Object> show() {	
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
     	return db.getSubscribedUsers();
     }
 
-	/**
-	 * Subscribes a user to the service.
-	 * @param fmJson  the JSON message.
-	 * @return        a message carrying information about the success of the operation.
-	 */
 	@Post("json")
 	public Map<String, String> store(String fmJson) {
 		Map<String, String> result = new HashMap<>();
@@ -69,11 +61,6 @@ public class User extends ServerResource {
 		return result;
 	}
 
-	/**
-	 * Removes a user from the list of subscribed ones.
-	 * @param fmJson  the JSON message.
-	 * @return        a message carrying information about the success of the operation.
-	 */
 	@Delete("json")
 	public Map<String, String> remove(String fmJson) {
 		Map<String, String> result = new HashMap<>();
@@ -92,8 +79,8 @@ public class User extends ServerResource {
 			// Get the field username
 			String username = root.get("username").asText();
 			
-			IDistributedBrokerREST ms = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", ms.removeUser(username));
+			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
+			result.put("message", db.removeUser(username));
 			
 		} catch (IOException e) {
 			e.printStackTrace();

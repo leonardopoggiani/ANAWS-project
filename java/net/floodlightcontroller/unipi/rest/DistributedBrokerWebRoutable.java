@@ -14,7 +14,7 @@ public class DistributedBrokerWebRoutable implements RestletRoutable{
         router.attach("/users/json", User.class);
         router.attach("/publishers/json", Publisher.class);
         router.attach("/subscribers/json", Subscriber.class);
-        router.attach("/access-messages/json", AccessMessages.class);
+        router.attach("/resources/json", Resource.class);
         
         return router;
     }

@@ -1,23 +1,13 @@
 package net.floodlightcontroller.unipi.rest;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.projectfloodlight.openflow.types.MacAddress;
-import org.restlet.resource.Get;
-import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+public class Resource extends ServerResource {
 
-public class Publisher extends ServerResource {
-
-	@Get("json")
+    @Get("json")
     public Map<String, Object> show() {	
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-    	return db.getPublishers();
+    	return db.getResources();
     }
 
 	@Post("json")
@@ -36,26 +26,26 @@ public class Publisher extends ServerResource {
 			JsonNode root = mapper.readTree(fmJson);
 			
 			// Get the field username
-			String username = root.get("username").asText();
+			String username = root.get("name").asText();
 
-			// Get the field MAC
-			MacAddress MAC;
+			// Get the field address
+            IPv4Address address;
 			try {
-				MAC = MacAddress.of(root.get("mac").asText());
+				address = IPv4Address.of(root.get("address").asText());
 			} catch (IllegalArgumentException e) {
-				result.put("message", "Invalid MAC address format");
+				result.put("message", "Invalid virtual address format");
 				return result;
 			}
 			
 			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", db.subscribeUser(username, MAC));
+			result.put("message", dn.createResource(username, MAaddressC));
 			
 		} catch (IOException e) {
 			e.printStackTrace();
 			result.put("message", "An exception occurred while parsing the parameters");
 		}
 		
-		result.put("message", "User correctly added");
+		result.put("message", "Resource correctly created");
 
 		return result;
 	}
