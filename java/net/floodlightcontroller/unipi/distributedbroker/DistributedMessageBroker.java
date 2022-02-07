@@ -143,14 +143,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		// retrieve last virtual ip used and create the new one
 		IPv4Address lastVirtualIpUsed = resources.get(resources.size() - 1);
+		loggerREST.info("lastVirtualIpUsed: " + lastVirtualIpUsed);
+		logger.info("lastVirtualIpUsed: " + lastVirtualIpUsed);
 		
-		// just for debugging, later we have to recover the last virtual ip used and create the new one
 		if(resources.isEmpty()) {
 			address = IPv4Address.of("10.0.0.1");
-			
+			logger.info("first resource, default address: " + address);
 		} else {
-			address_int = lastVirtualIpUsed.getInt();
+			address_int = lastVirtualIpUsed.getInt() + 1;
 			address = IPv4Address.of(address_int);
+			loggerREST.info("new address:" + address);
+			logger.info("new resource, address: " + address);
+
 		}
 		
 		resources.put(howManyResources, address);
@@ -185,7 +189,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		resourceSubscribers.get(resource_address).put(MAC, username);
 		 // Add user to the list of subscribed users related to this resource.
-		resourceSubscribers.get(resource_address).put(MAC, username);
+		//resourceSubscribers.get(resource_address).put(MAC, username);
 
         loggerREST.info("Registered user {} with username \"{}\".", MAC, username);
         return "Subscription successful";

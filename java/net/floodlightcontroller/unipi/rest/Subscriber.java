@@ -16,10 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class Subscriber extends ServerResource {
 	
 	@Get("json")
-    public Map<MacAddress, String> show() {	
+    public Map<MacAddress, String> show(String fmJson) {	
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-    	//TODO cambiare non so ancora come funziona
-    	return db.getSubscribers(null);
+        String resources = (String) getRequestAttributes().get("resource");
+
+    	return db.getSubscribers(IPv4Address.of(resources));
     }
 
 	@Post("json")
@@ -58,8 +59,6 @@ public class Subscriber extends ServerResource {
 			e.printStackTrace();
 			result.put("message", "An exception occurred while parsing the parameters");
 		}
-		
-		result.put("message", "Resource correctly subscribed");
 
 		return result;
 	}
