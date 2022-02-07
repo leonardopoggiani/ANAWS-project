@@ -40,6 +40,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     Map<Integer, IPv4Address>  resources = new HashMap<>();
     int howManyResources = 0;
     
+  //Resources and subscribers for each resource
+  	private final Map<IPv4Address, Map<MacAddress, String>>  resourceSubscribers = new HashMap<>();
+    
 	@Override
 	public String getName() {
 		return IDistributedBrokerREST.class.getSimpleName();
@@ -114,9 +117,11 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 	
 	@Override
-	public Map<String, Object> getSubscribers() {
-		// TODO Auto-generated method stub
-		return null;
+	public Map<MacAddress, String> getSubscribers(IPv4Address resource_address) {
+		//List of subscribers of resource_address
+		Map<MacAddress, String> list = new HashMap<>();
+		list = resourceSubscribers.get(resource_address);
+		return list;
 	}
 
 	@Override
@@ -127,13 +132,14 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
             list.put(resource.getKey().toString(), resource.getValue().toString());
         }
 
-        loggerREST.info("The list of subscribed users has been provided.");
+        loggerREST.info("The list of resources has been provided.");
         return list;
     }
 
 	@Override
 	public String createResource() {
 		IPv4Address address = null;
+		int address_int = 0;
 		
 		// retrieve last virtual ip used and create the new one
 		IPv4Address lastVirtualIpUsed = resources.get(resources.size() - 1);
@@ -141,11 +147,14 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		// just for debugging, later we have to recover the last virtual ip used and create the new one
 		if(resources.isEmpty()) {
 			address = IPv4Address.of("10.0.0.1");
+			
 		} else {
-			address = IPv4Address.of("10.0.0.2");
+			address_int = lastVirtualIpUsed.getInt();
+			address = IPv4Address.of(address_int);
 		}
 		
 		resources.put(howManyResources, address);
+		resourceSubscribers.put(address,new HashMap<MacAddress, String>());
 		howManyResources++;
         return "Resource created, address: " + address;
 	}
@@ -157,9 +166,45 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 
 	@Override
-	public String subscribeResource(IPv4Address resource_address) {
-		// TODO Auto-generated method stub
-		return null;
+	public String subscribeResource(IPv4Address resource_address, String username, MacAddress MAC) {
+		
+		loggerREST.info("Received request for the subscription of {}, with username \"{}\".",
+                MAC, username);
+
+		// Check if MAC address is already subscribed.
+		if (resourceSubscribers.get(resource_address).containsKey(MAC)) {
+		    loggerREST.info("The MAC address {} is already subscribed.", MAC);
+		    return "MAC address already subscribed";
+		}
+		
+		// Check if the username is already present.
+        if (resourceSubscribers.get(resource_address).containsValue(username)) {
+            loggerREST.info("The username \"{}\" is already in use.", username);
+            return "Username already in use";
+        }
+		
+		resourceSubscribers.get(resource_address).put(MAC, username);
+		 // Add user to the list of subscribed users related to this resource.
+		resourceSubscribers.get(resource_address).put(MAC, username);
+
+        loggerREST.info("Registered user {} with username \"{}\".", MAC, username);
+        return "Subscription successful";
+	}
+	
+	@Override
+	public String removeSubscription(IPv4Address resource_address, String username) {
+		
+		loggerREST.info("Received request for delete the subscription of {}, with username \"{}\".",
+                username);
+
+		// Check if the username is present.
+        for(Map.Entry<MacAddress, String> resourceSub : resourceSubscribers.get(resource_address).entrySet()) {
+        	if(resourceSub.getValue().equals(username))
+        		resourceSubscribers.get(resource_address).remove(resourceSub.getKey());
+				return "User removed from the resource";
+        }
+		
+        return "User removed successfully";
 	}
 
 }

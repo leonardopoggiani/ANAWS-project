@@ -13,7 +13,7 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 
 	String createUser(String username, MacAddress MAC);
 
-	Map<String, Object> getSubscribers();
+	Map<MacAddress, String> getSubscribers(IPv4Address resource_address);
 
 	Map<String, Object> getResources();
 
@@ -21,5 +21,7 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 
 	String publishMessage(String message, IPv4Address resource_address);
 
-	String subscribeResource(IPv4Address resource_address);
+	String subscribeResource(IPv4Address resource_address, String username, MacAddress MAC);
+	
+	String removeSubscription(IPv4Address resource_address, String username);
 }

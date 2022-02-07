@@ -16,9 +16,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class Subscriber extends ServerResource {
 	
 	@Get("json")
-    public Map<String, Object> show() {	
+    public Map<MacAddress, String> show() {	
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-    	return db.getSubscribers();
+    	//TODO cambiare non so ancora come funziona
+    	return db.getSubscribers(null);
     }
 
 	@Post("json")
@@ -38,15 +39,20 @@ public class Subscriber extends ServerResource {
 
 			// Get the field virtual address
 			IPv4Address resource_address;
+			String username;
+			//Non sapevo come prenderlo per ora l'ho messo qua
+			String MAC;
 			try {
 				resource_address = IPv4Address.of(root.get("resource").asText());
+				username = root.get("username").asText();
+				MAC = root.get("MAC").asText();
 			} catch (IllegalArgumentException e) {
-				result.put("message", "Invalid resource address address format");
+				result.put("message", "Invalid format");
 				return result;
 			}
 			
 			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", db.subscribeResource(resource_address));
+			result.put("message", db.subscribeResource(resource_address, username, MacAddress.of(MAC)));
 			
 		} catch (IOException e) {
 			e.printStackTrace();
