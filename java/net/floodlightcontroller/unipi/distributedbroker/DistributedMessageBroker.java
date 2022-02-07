@@ -108,7 +108,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 
 	@Override
-	public String subscribeUser(String username, MacAddress MAC) {
+	public String createUser(String username, MacAddress MAC) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -148,6 +148,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		resources.put(howManyResources, address);
 		howManyResources++;
         return "Resource created, address: " + address;
+	}
+
+	@Override
+	public String publishMessage(String message, IPv4Address resource_address) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String subscribeResource(IPv4Address resource_address) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

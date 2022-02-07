@@ -11,11 +11,15 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 
 	Map<String, Object> getSubscribedUsers();
 
-	String subscribeUser(String username, MacAddress MAC);
+	String createUser(String username, MacAddress MAC);
 
 	Map<String, Object> getSubscribers();
 
 	Map<String, Object> getResources();
 
 	String createResource();
+
+	String publishMessage(String message, IPv4Address resource_address);
+
+	String subscribeResource(IPv4Address resource_address);
 }

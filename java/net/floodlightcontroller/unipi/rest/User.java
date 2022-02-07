@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.projectfloodlight.openflow.types.MacAddress;
-import org.restlet.resource.Delete;
 import org.restlet.resource.Get;
 import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
@@ -49,15 +48,13 @@ public class User extends ServerResource {
 			}
 			
 			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", db.subscribeUser(username, MAC));
+			result.put("message", db.createUser(username, MAC));
 			
 		} catch (IOException e) {
 			e.printStackTrace();
 			result.put("message", "An exception occurred while parsing the parameters");
 		}
 		
-		result.put("message", "User correctly added");
-
 		return result;
 	}
 }
