@@ -60,33 +60,4 @@ public class User extends ServerResource {
 
 		return result;
 	}
-
-	@Delete("json")
-	public Map<String, String> remove(String fmJson) {
-		Map<String, String> result = new HashMap<>();
-		
-        // Check if the payload is provided
-        if(fmJson == null){
-			result.put("message", "No parameters provided");
-			return result;
-        }
-
-		// Parse the JSON input
-		ObjectMapper mapper = new ObjectMapper();
-		try {
-			JsonNode root = mapper.readTree(fmJson);
-			
-			// Get the field username
-			String username = root.get("username").asText();
-			
-			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", db.removeUser(username));
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			result.put("message", "An exception occurred while parsing the parameters");
-		}
-
-		return result;
-	}
 }

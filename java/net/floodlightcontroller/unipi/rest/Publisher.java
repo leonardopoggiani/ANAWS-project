@@ -14,12 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Publisher extends ServerResource {
 
-	@Get("json")
-    public Map<String, Object> show() {	
-    	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-    	return db.getPublishers();
-    }
-
 	@Post("json")
 	public Map<String, String> store(String fmJson) {
 		Map<String, String> result = new HashMap<>();

@@ -36,7 +36,10 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     // Default virtual IP and MAC addresses of the service.
     private IPv4Address SERVER_IP = IPv4Address.of("8.8.8.8");
     private MacAddress SERVER_MAC = MacAddress.of("FE:FE:FE:FE:FE:FE");
-
+    
+    Map<Integer, IPv4Address>  resources = new HashMap<>();
+    int howManyResources = 0;
+    
 	@Override
 	public String getName() {
 		return IDistributedBrokerREST.class.getSimpleName();
@@ -109,31 +112,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		// TODO Auto-generated method stub
 		return null;
 	}
-
-	@Override
-	public String removeUser(String username) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public Map<String, Object> getVirtualAddress() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public String setVirtualAddress(IPv4Address ipv4, MacAddress MAC) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public Map<String, Object> getPublishers() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
+	
 	@Override
 	public Map<String, Object> getSubscribers() {
 		// TODO Auto-generated method stub
@@ -141,14 +120,34 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 
 	@Override
-	public String getResources() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+	public Map<String, Object> getResources() {
+		Map<String, Object> list = new HashMap<>();
+		
+        for (Map.Entry<Integer, IPv4Address> resource : resources.entrySet()) {
+            list.put(resource.getKey().toString(), resource.getValue().toString());
+        }
+
+        loggerREST.info("The list of subscribed users has been provided.");
+        return list;
+    }
 
 	@Override
 	public String createResource() {
-		// TODO Auto-generated method stub
-		return null;
+		IPv4Address address = null;
+		
+		// retrieve last virtual ip used and create the new one
+		IPv4Address lastVirtualIpUsed = resources.get(resources.size() - 1);
+		
+		// just for debugging, later we have to recover the last virtual ip used and create the new one
+		if(resources.isEmpty()) {
+			address = IPv4Address.of("10.0.0.1");
+		} else {
+			address = IPv4Address.of("10.0.0.2");
+		}
+		
+		resources.put(howManyResources, address);
+		howManyResources++;
+        return "Resource created, address: " + address;
 	}
+
 }
