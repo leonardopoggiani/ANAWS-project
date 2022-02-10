@@ -1,6 +1,7 @@
 package it.unipi.floodlightcontroller.rest;
 
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.MacAddress;
@@ -13,7 +14,7 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 
 	String createUser(String username, MacAddress MAC);
 
-	Map<MacAddress, String> getSubscribers(IPv4Address resource_address);
+	Map<String, String> getSubscribers(IPv4Address resource_address);
 
 	Map<String, Object> getResources();
 
@@ -21,7 +22,7 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 
 	String publishMessage(String message, IPv4Address resource_address);
 
-	String subscribeResource(IPv4Address resource_address, String username, MacAddress MAC);
+	String subscribeResource(IPv4Address resource_address, IPv4Address USER_IP, MacAddress MAC);
 	
-	String removeSubscription(IPv4Address resource_address, String username);
+	String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP);
 }

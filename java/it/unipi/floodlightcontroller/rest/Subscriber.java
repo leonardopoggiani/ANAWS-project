@@ -16,10 +16,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class Subscriber extends ServerResource {
 	
 	@Get("json")
-    public Map<MacAddress, String> show(String fmJson) {	
+    public Map<String, String> show(String fmJson) {	
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
         String resources = (String) getRequestAttributes().get("resource");
-
+        
     	return db.getSubscribers(IPv4Address.of(resources));
     }
 
@@ -39,13 +39,13 @@ public class Subscriber extends ServerResource {
 			JsonNode root = mapper.readTree(fmJson);
 
 			// Get the field virtual address
-			IPv4Address resource_address;
-			String username;
+	        String resources = (String) getRequestAttributes().get("resource");
+			IPv4Address resource_address = IPv4Address.of(resources);
+			String user_address;
 			//Non sapevo come prenderlo per ora l'ho messo qua
 			String MAC;
 			try {
-				resource_address = IPv4Address.of(root.get("resource").asText());
-				username = root.get("username").asText();
+				user_address = root.get("address").asText();
 				MAC = root.get("MAC").asText();
 			} catch (IllegalArgumentException e) {
 				result.put("message", "Invalid format");
@@ -53,7 +53,7 @@ public class Subscriber extends ServerResource {
 			}
 			
 			IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
-			result.put("message", db.subscribeResource(resource_address, username, MacAddress.of(MAC)));
+			result.put("message", db.subscribeResource(resource_address, IPv4Address.of(user_address), MacAddress.of(MAC)));
 			
 		} catch (IOException e) {
 			e.printStackTrace();
