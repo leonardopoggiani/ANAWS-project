@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
 import org.projectfloodlight.openflow.protocol.OFMessage;
@@ -67,8 +68,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	private static final int IDLE_TIMEOUT = 0;
 	private static final int HARD_TIMEOUT = 0;
     
-    private final Map<Integer, IPv4Address>  resources = new HashMap<>();
-    int howManyResources = 0;
+    private final Map<IPv4Address, Integer>  resources = new HashMap<>();
+    int howManyResources = 1;
    
     // Resources and subscribers for each resource
     // <virtual resource address, <real mac address, real ip>>
@@ -132,8 +133,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 	 
 	private boolean isResourceAddress(MacAddress addressMAC, IPv4Address addressIP) {
-		for (Map.Entry<Integer, IPv4Address> resource : resources.entrySet()) {
-        	if (addressIP.compareTo(resource.getValue()) == 0) {
+		for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
+        	if (addressIP.compareTo(resource.getKey()) == 0) {
         		if(addressMAC.compareTo(SERVER_MAC) == 0) {
         			return true;
         		}
@@ -177,20 +178,20 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 	
 	private Set<SwitchPort> getSwitchesAttachedToDevice(MacAddress deviceMAC) {
-        Iterator<? extends IDevice> devices = deviceService.queryDevices(deviceMAC, null, null, null, null, null);
+		// Iterator<? extends IDevice> devices = deviceService.queryDevices(deviceMAC, null, null, null, null);
         Set<SwitchPort> attachedSwitches = new HashSet<>();
         int numberOfDevices = 0;
 
-        while(devices.hasNext()) {
-            attachedSwitches.addAll(Arrays.asList(devices.next().getAttachmentPoints()));
-            numberOfDevices++;
+        // while(devices.hasNext()) {
+        //    attachedSwitches.addAll(Arrays.asList(devices.next().getAttachmentPoints()));
+        //    numberOfDevices++;
 
             if (numberOfDevices > 1) {
                 logger.error("Multiple devices with the same MAC address were found in the network." +
                         "Returning no attachment points.");
-                break;
+            //    break;
             }
-        }
+        // }
 
         /*
          *  Conditions causing the return of no switches:
@@ -208,33 +209,22 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		// the request to the resource must retrieve the list of subscribers of the resource
 		Map<String, String> list = null;
 		
-		for (Map.Entry<Integer, IPv4Address> resource : resources.entrySet()) {
-        	if (ipPacket.getDestinationAddress().compareTo(resource.getValue()) == 0) {
-                list = getSubscribers(resource.getValue());
+		for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
+        	if (ipPacket.getDestinationAddress().compareTo(resource.getKey()) == 0) {
+                list = getSubscribers(resource.getKey());
                 break;
         	}
         }
-		
-		 
 		
 		if(list == null) {
 			// no subscribers for this resource
 			return;
 		}
+		
 		for(Map.Entry<String, String> subscriber : list.entrySet()) {
-			Set<SwitchPort> attachedSwitches = getSwitchesAttachedToDevice(MacAddress.of(subscriber.getKey()));
 			
-            if (attachedSwitches == null)
-                continue;
-            
-            OFPort outputPort = null;
-            for (SwitchPort attachedSwitch : attachedSwitches) {
-          
-                if (attachedSwitch.getNodeId().equals(sw.getId())) {
-                    outputPort = attachedSwitch.getPortId();
-                    break;
-                }
-            }
+	        OFPort outputPort = packetIn.getMatch().get(MatchField.IN_PORT);
+			logger.info("outputPort: {}", outputPort);
 
             if (outputPort == null) {
                 logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
@@ -359,10 +349,10 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         boolean belongToResource = false;
         
-        for (Map.Entry<Integer, IPv4Address> resource : resources.entrySet()) {
-        	if (arpRequest.getTargetProtocolAddress().compareTo(resource.getValue()) == 0) {
+        for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
+        	if (arpRequest.getTargetProtocolAddress().compareTo(resource.getKey()) == 0) {
                 logger.info("the arp request belong to a virtual address of a resource, so build a reply");
-                arpReply = createArpReplyForService(ethernetFrame, arpRequest, resource.getValue());
+                arpReply = createArpReplyForService(ethernetFrame, arpRequest, resource.getKey());
                 belongToResource = true;
                 break;
         	}
@@ -498,7 +488,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	public Map<String, Object> getResources() {
 		Map<String, Object> list = new HashMap<>();
 		
-        for (Map.Entry<Integer, IPv4Address> resource : resources.entrySet()) {
+        for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
             list.put(resource.getKey().toString(), resource.getValue().toString());
         }
 
@@ -512,9 +502,11 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		int address_int = 0;
 		
 		// retrieve last virtual ip used and create the new one
-		IPv4Address lastVirtualIpUsed = resources.get(resources.size() - 1);
+		IPv4Address lastVirtualIpUsed = null;
+		for (Entry<IPv4Address, Integer> entry : resources.entrySet()) {
+			lastVirtualIpUsed = entry.getKey();
+        }
 		loggerREST.info("lastVirtualIpUsed: " + lastVirtualIpUsed);
-		logger.info("lastVirtualIpUsed: " + lastVirtualIpUsed);
 		
 		if(resources.isEmpty()) {
 			address = IPv4Address.of("1.1.1.1");
@@ -527,7 +519,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
 		}
 		
-		resources.put(howManyResources, address);
+		resources.put(address, howManyResources);
 		resourceSubscribers.put(address, new HashMap<MacAddress, IPv4Address>());
 		howManyResources++;
         return "Resource created, address: " + address;
