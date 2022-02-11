@@ -367,8 +367,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     }
     
     /**
-     * Drops a packet that comes from an unsubscribed user or that comes from a subscribed user,
-     * but is not addressed to the service. Only ARP requests and IP packets are allowed.
+     * Drops a packet that comes from a user,
+     * but is not addressed to a resource. Only ARP requests and IP packets are allowed.
      * @param sw             the switch that sent the packet-in.
      * @param ethernetFrame  the Ethernet frame encapsulated in the packet-in.
      * @return               true if the packet must be dropped, false otherwise.
