@@ -355,6 +355,62 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         return Command.STOP;
     }
+	
+	/**
+     * Checks if the given IP address couple identifies a resource.
+     * @param addressIP   the IPv4 address of the resource.
+     * @return            true if the couple identifies a resource, false otherwise.
+     */
+    private boolean isResourceIPAddress(IPv4Address addressIP) {
+
+        return resourceSubscribers.containsKey(addressIP);
+    }
+    
+    /**
+     * Drops a packet that comes from an unsubscribed user or that comes from a subscribed user,
+     * but is not addressed to the service. Only ARP requests and IP packets are allowed.
+     * @param sw             the switch that sent the packet-in.
+     * @param ethernetFrame  the Ethernet frame encapsulated in the packet-in.
+     * @return               true if the packet must be dropped, false otherwise.
+     */
+    
+    private boolean filterPacket(IOFSwitch sw, Ethernet ethernetFrame) {
+        MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
+        MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
+        logger.info("Received a packet from {} with destination {}", sourceMAC, destinationMAC);
+        
+        IPacket packet = ethernetFrame.getPayload();
+        
+        // If the packet is an ARP request, it is allowed only if it targets a resource's virtual IP.
+        if ((ethernetFrame.isBroadcast() || ethernetFrame.isMulticast()) && packet instanceof ARP) {
+            ARP arpRequest = (ARP) packet;
+
+            if (!isResourceIPAddress(arpRequest.getTargetProtocolAddress())) {
+                logger.info("The packet is an ARP request coming from an user and not addressed " +
+                        "to a resource. Dropping the packet.");
+                return true;
+            }
+
+            logger.info("The packet is an ARP request coming from an user and addressed " +
+                                "to a resource. Accepting the packet.");
+            return false;
+        }
+
+        // If the packet is an IP request, check if IP destination address is virtual.
+        if (packet instanceof IPv4) {
+            IPv4 ipPacket = (IPv4) packet;
+	        if (!isResourceIPAddress(ipPacket.getDestinationAddress())) {
+	            logger.info("The packet is an IP request coming from an user and not addressed " +
+	                                "to a resource. Dropping the packet.");
+	            return true;
+	        }
+	        logger.info("The packet is an IP request coming from an user and addressed " +
+                    "to a resource. Accepting the packet.");
+	        return false;
+        }
+        logger.info("The packet is neither an ARP request nor an IP packet. Dropping the packet.");
+        return true;
+    }
 	 
 	@Override
     public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
@@ -364,8 +420,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         
         logger.info("processing received packet");
 
-        //if (filterPacket(sw, ethernetFrame))
-        //    return Command.STOP;
+        if (filterPacket(sw, ethernetFrame))
+            return Command.STOP;
 
         if (packet instanceof ARP) {
             ARP arpRequest = (ARP) packet;
