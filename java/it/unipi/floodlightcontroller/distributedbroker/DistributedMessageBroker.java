@@ -43,9 +43,6 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.devicemanager.IDevice;
-import net.floodlightcontroller.devicemanager.IDeviceService;
-import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPacket;
@@ -61,18 +58,21 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     // Floodlight services used by the module.
     private IFloodlightProviderService floodlightProvider;
     private IRestApiService restApiService;
-    private IDeviceService deviceService;
 
     // Default virtual IP and MAC addresses of the server
 	private final static MacAddress SERVER_MAC =  MacAddress.of("00:00:00:00:00:FE");
 	private static final int IDLE_TIMEOUT = 0;
 	private static final int HARD_TIMEOUT = 0;
     
+	// <ip virtuale, int> -> <1.1.1.1, 1>, <1.1.1.2, 2> ...
     private final Map<IPv4Address, Integer>  resources = new HashMap<>();
-    int howManyResources = 1;
-   
+    int howManyResources = 1; 
+    IPv4Address lastAddressUsed = null;
+    
     // Resources and subscribers for each resource
     // <virtual resource address, <real mac address, real ip>>
+    // <1.1.1.1, < <00:00:00:00:00:01, 10.0.0.1>,<00:00:00:00:00:02, 10.0.0.2> ..>
+    // <1.1.1.2, < <00:00:00:00:00:03, 10.0.0.3>, ..>
   	private final Map<IPv4Address, HashMap<MacAddress, IPv4Address>>  resourceSubscribers = new HashMap<>();
     
 	@Override
@@ -111,7 +111,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         Collection<Class<? extends IFloodlightService>> dependencies = new ArrayList<>();
 
         dependencies.add(IFloodlightProviderService.class);
-        dependencies.add(IDeviceService.class);
         dependencies.add(IRestApiService.class);
 
         return dependencies;
@@ -123,7 +122,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
         restApiService = context.getServiceImpl(IRestApiService.class);
-        deviceService = context.getServiceImpl(IDeviceService.class);
 	}
 
 	 @Override
@@ -177,34 +175,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return Command.CONTINUE;
 	}
 	
-	private Set<SwitchPort> getSwitchesAttachedToDevice(MacAddress deviceMAC) {
-		// Iterator<? extends IDevice> devices = deviceService.queryDevices(deviceMAC, null, null, null, null);
-        Set<SwitchPort> attachedSwitches = new HashSet<>();
-        int numberOfDevices = 0;
-
-        // while(devices.hasNext()) {
-        //    attachedSwitches.addAll(Arrays.asList(devices.next().getAttachmentPoints()));
-        //    numberOfDevices++;
-
-            if (numberOfDevices > 1) {
-                logger.error("Multiple devices with the same MAC address were found in the network." +
-                        "Returning no attachment points.");
-            //    break;
-            }
-        // }
-
-        /*
-         *  Conditions causing the return of no switches:
-         *  1) the device is not in the network anymore;
-         *  2) multiple devices with the same MAC address are found (it should not be possible);
-         *  3) the device is still a tracked device, but it is disconnected (no attachment points).
-         */
-        if (numberOfDevices == 0 || numberOfDevices > 1 || attachedSwitches.isEmpty())
-            return null;
-
-        return attachedSwitches;
-    }
-	
 	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
 		// the request to the resource must retrieve the list of subscribers of the resource
 		Map<String, String> list = null;
@@ -221,18 +191,19 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			return;
 		}
 		
+		// i want to send a packet to every subscriber on the list
+		int i = 1;
 		for(Map.Entry<String, String> subscriber : list.entrySet()) {
+			logger.info("subscriber: {}", subscriber);
 			
-	        OFPort outputPort = packetIn.getMatch().get(MatchField.IN_PORT);
+	        OFPort outputPort = OFPort.of(i); // need to set the right outport
 			logger.info("outputPort: {}", outputPort);
 
             if (outputPort == null) {
                 logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
                 return;
             }
-            logger.info("Output port towards the user: " + outputPort);
-
-            
+                        
 			instructSwitchWhenRequestToService(sw, packetIn, ethernetFrame, ipPacket, MacAddress.of(subscriber.getKey()), IPv4Address.of(subscriber.getValue()), outputPort);
 		}
 		
@@ -384,54 +355,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         return Command.STOP;
     }
-
-	/*private boolean filterPacket(IOFSwitch sw, Ethernet ethernetFrame) {
-        MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-        MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
-        logger.info("Received a packet from {} with destination {}", sourceMAC, destinationMAC);
-
-        // If the packet comes from a server, it is always accepted.
-        if (isServerMacAddress(sourceMAC)) {
-            logger.info("The packet comes from a server. Accepting the packet.");
-            return false;
-        }
-
-        // The packet is coming from a subscribed user and it is transiting through an access switch.
-        IPacket packet = ethernetFrame.getPayload();
-
-        // If the packet is an ARP request, it is allowed only if it targets the virtual IP.
-        if ((ethernetFrame.isBroadcast() || ethernetFrame.isMulticast()) && packet instanceof ARP) {
-            ARP arpRequest = (ARP) packet;
-
-            if (arpRequest.getTargetProtocolAddress().compareTo(SERVER_IP) != 0) {
-                logger.info("The packet is an ARP request coming from the client and not addressed " +
-                                    "to the service. Dropping the packet.");
-                return true;
-            }
-
-            logger.info("The packet is an ARP request coming from the client and addressed " +
-                                "to the service. Accepting the packet.");
-            return false;
-        }
-
-        // If the packet is an IP request, check if IP or MAC destination addresses are virtual.
-        if (packet instanceof IPv4) {
-            IPv4 ipPacket = (IPv4) packet;
-
-            if (!isServerAddress(destinationMAC, ipPacket.getDestinationAddress())) {
-                logger.info("The packet is an IP request coming from the client and not addressed " +
-                                    "to the service. Dropping the packet.");
-                return true;
-            }
-
-            logger.info("The packet is an IP request coming from the client and addressed " +
-                                "to the service. Accepting the packet.");
-            return false;
-        }
-
-        logger.info("The packet is neither an ARP request nor an IP packet. Dropping the packet.");
-        return true;
-    }*/
 	 
 	@Override
     public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
@@ -458,18 +381,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         return Command.STOP;
     }
-	 
-	@Override
-	public Map<String, Object> getSubscribedUsers() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public String createUser(String username, MacAddress MAC) {
-		// TODO Auto-generated method stub
-		return null;
-	}
 	
 	@Override
 	public Map<String, String> getSubscribers(IPv4Address resource_address) {
@@ -500,42 +411,30 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	public String createResource() {
 		IPv4Address address = null;
 		int address_int = 0;
-		
+				
 		// retrieve last virtual ip used and create the new one
-		IPv4Address lastVirtualIpUsed = null;
-		for (Entry<IPv4Address, Integer> entry : resources.entrySet()) {
-			lastVirtualIpUsed = entry.getKey();
-        }
+		IPv4Address lastVirtualIpUsed = lastAddressUsed;
 		loggerREST.info("lastVirtualIpUsed: " + lastVirtualIpUsed);
 		
 		if(resources.isEmpty()) {
 			address = IPv4Address.of("1.1.1.1");
+			lastAddressUsed = address;
 			logger.info("first resource, default address: " + address);
 		} else {
 			address_int = lastVirtualIpUsed.getInt() + 1;
 			address = IPv4Address.of(address_int);
-			loggerREST.info("new address:" + address);
-			logger.info("new resource, address: " + address);
-
+			loggerREST.info("new address: " + address);
 		}
 		
 		resources.put(address, howManyResources);
 		resourceSubscribers.put(address, new HashMap<MacAddress, IPv4Address>());
 		howManyResources++;
+		lastAddressUsed = address;
         return "Resource created, address: " + address;
 	}
 
 	@Override
-	public String publishMessage(String message, IPv4Address resource_address) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
 	public String subscribeResource(IPv4Address resource_address, IPv4Address USER_IP, MacAddress MAC) {
-		
-		loggerREST.info("Received request for the subscription of {}, with ip \"{}\".",
-                MAC, USER_IP);
 
 		// Check if MAC address is already subscribed.
 		if (resourceSubscribers.get(resource_address).containsKey(MAC)) {
@@ -548,15 +447,16 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
             loggerREST.info("The USER_IP \"{}\" is already in use.", USER_IP);
             return "Username already in use";
         }
-		
+        
+		// Add user to the list of subscribed users related to this resource.
 		resourceSubscribers.get(resource_address).put(MAC, USER_IP);
-		 // Add user to the list of subscribed users related to this resource.
-		//resourceSubscribers.get(resource_address).put(MAC, username);
 
         loggerREST.info("Registered user_MAC {} with IP \"{}\".", MAC, USER_IP);
         return "Subscription successful";
 	}
 	
+	
+	// to delete or review
 	@Override
 	public String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP) {
 		

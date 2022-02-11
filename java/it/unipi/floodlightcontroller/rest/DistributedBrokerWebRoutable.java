@@ -11,8 +11,6 @@ public class DistributedBrokerWebRoutable implements RestletRoutable{
     public Restlet getRestlet(Context context) {
         Router router = new Router(context);
 
-        router.attach("/users/json", User.class);
-        router.attach("/publishers/json", Publisher.class);
         router.attach("/subscribers/{resource}/json", Subscriber.class);
         router.attach("/resources/json", Resource.class);
         

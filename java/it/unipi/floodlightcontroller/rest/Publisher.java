@@ -13,6 +13,7 @@ import org.restlet.resource.ServerResource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/*
 public class Publisher extends ServerResource {
 
 	@Post("json")
@@ -54,3 +55,4 @@ public class Publisher extends ServerResource {
 	}
 
 }
+*/
