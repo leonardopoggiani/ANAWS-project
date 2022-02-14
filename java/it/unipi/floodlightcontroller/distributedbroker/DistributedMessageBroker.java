@@ -156,7 +156,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         // The packet is a request to the service from a user.
         if (isResourceAddress(destinationMAC, destinationIP)) {
             logger.info("The packet is a message to a resource.");
-            logger.info("Handling the translation of the destination address.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
@@ -171,7 +170,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         // The packet is transiting through the network.
         logger.info("The packet is transiting through the network.");
-        logger.info("Leaving the processing to the Forwarding module.");
         return Command.CONTINUE;
 	}
 	
@@ -192,11 +190,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		}
 		
 		// i want to send a packet to every subscriber on the list
-		int i = 1;
 		for(Map.Entry<String, String> subscriber : list.entrySet()) {
 			logger.info("subscriber: {}", subscriber);
+			 
+			// se � il mittente non devo fare nulla
+			if(subscriber.getValue().compareTo(ipPacket.getSourceAddress().toString()) == 0) {
+				logger.info("Trying to reply to the sender, discard");
+				continue;
+			}
 			
-	        OFPort outputPort = OFPort.of(i); // need to set the right outport
+			// se non � il mittente la porta sar� l'ultima parte dell'indirizzo
+			String port = subscriber.getValue().substring(subscriber.getValue().lastIndexOf('.') + 1);	        
+			OFPort outputPort = OFPort.of(Integer.parseInt(port)); 
 			logger.info("outputPort: {}", outputPort);
 
             if (outputPort == null) {
@@ -204,7 +209,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
                 return;
             }
                         
-			instructSwitchWhenRequestToService(sw, packetIn, ethernetFrame, ipPacket, MacAddress.of(subscriber.getKey()), IPv4Address.of(subscriber.getValue()), outputPort);
+            instructSwitchWhenRequestToServer(sw, packetIn, ethernetFrame, ipPacket, MacAddress.of(subscriber.getKey()), IPv4Address.of(subscriber.getValue()), outputPort);
 		}
 		
 		logger.info("Packet-out and flow mod correctly sent to the switch.");
@@ -251,7 +256,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return actionList;
 	}
 	
-	private void instructSwitchWhenRequestToService(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame,
+	private void instructSwitchWhenRequestToServer(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame,
         IPv4 ipPacket, MacAddress serverMAC, IPv4Address serverIP,
         OFPort outputPort) {
 
@@ -355,62 +360,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         return Command.STOP;
     }
-	
-	/**
-     * Checks if the given IP address couple identifies a resource.
-     * @param addressIP   the IPv4 address of the resource.
-     * @return            true if the couple identifies a resource, false otherwise.
-     */
-    private boolean isResourceIPAddress(IPv4Address addressIP) {
-
-        return resourceSubscribers.containsKey(addressIP);
-    }
-    
-    /**
-     * Drops a packet that comes from a user,
-     * but is not addressed to a resource. Only ARP requests and IP packets are allowed.
-     * @param sw             the switch that sent the packet-in.
-     * @param ethernetFrame  the Ethernet frame encapsulated in the packet-in.
-     * @return               true if the packet must be dropped, false otherwise.
-     */
-    
-    private boolean filterPacket(IOFSwitch sw, Ethernet ethernetFrame) {
-        MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-        MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
-        logger.info("Received a packet from {} with destination {}", sourceMAC, destinationMAC);
-        
-        IPacket packet = ethernetFrame.getPayload();
-        
-        // If the packet is an ARP request, it is allowed only if it targets a resource's virtual IP.
-        if ((ethernetFrame.isBroadcast() || ethernetFrame.isMulticast()) && packet instanceof ARP) {
-            ARP arpRequest = (ARP) packet;
-
-            if (!isResourceIPAddress(arpRequest.getTargetProtocolAddress())) {
-                logger.info("The packet is an ARP request coming from an user and not addressed " +
-                        "to a resource. Dropping the packet.");
-                return true;
-            }
-
-            logger.info("The packet is an ARP request coming from an user and addressed " +
-                                "to a resource. Accepting the packet.");
-            return false;
-        }
-
-        // If the packet is an IP request, check if IP destination address is virtual.
-        if (packet instanceof IPv4) {
-            IPv4 ipPacket = (IPv4) packet;
-	        if (!isResourceIPAddress(ipPacket.getDestinationAddress())) {
-	            logger.info("The packet is an IP request coming from an user and not addressed " +
-	                                "to a resource. Dropping the packet.");
-	            return true;
-	        }
-	        logger.info("The packet is an IP request coming from an user and addressed " +
-                    "to a resource. Accepting the packet.");
-	        return false;
-        }
-        logger.info("The packet is neither an ARP request nor an IP packet. Dropping the packet.");
-        return true;
-    }
 	 
 	@Override
     public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
@@ -420,8 +369,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         
         logger.info("processing received packet");
 
-        if (filterPacket(sw, ethernetFrame))
-            return Command.STOP;
+        //if (filterPacket(sw, ethernetFrame))
+        //    return Command.STOP;
 
         if (packet instanceof ARP) {
             ARP arpRequest = (ARP) packet;
