@@ -18,10 +18,12 @@
 package net.floodlightcontroller.core;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 
 import net.floodlightcontroller.core.module.IFloodlightService;
 import net.floodlightcontroller.packet.Ethernet;
+import io.netty.util.Timer;
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.HARole;
 import net.floodlightcontroller.core.IHAListener;
@@ -36,7 +38,8 @@ import net.floodlightcontroller.core.FloodlightContextStore;
 
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFType;
-
+import org.projectfloodlight.openflow.types.IPv4Address;
+import org.projectfloodlight.openflow.types.TransportPort;
 /**
  * The interface exposed by the core bundle that allows you to interact
  * with connected switches.
@@ -110,6 +113,18 @@ public interface IFloodlightProviderService extends
      * Gets the ID of the controller
      */
     public String getControllerId();
+
+    /**
+     * Gets the controller addresses
+     * @return the controller addresses
+     */
+    public Set<IPv4Address> getOFAddresses();
+
+    /**
+     * Gets the controller's openflow port
+     * @return the controller's openflow port
+     */
+    public TransportPort getOFPort();
 
     /**
      * Set the role of the controller
@@ -189,8 +204,21 @@ public interface IFloodlightProviderService extends
     */
    public Long getUptime();
 
+   /**
+    * Get the set of port prefixes that will define an UPLINK port.
+    * @return The set of prefixes
+    */
+   public Set<String> getUplinkPortPrefixSet();
+
+
    public void handleMessage(IOFSwitch sw, OFMessage m,
                           FloodlightContext bContext);
+
+   /**
+    * Gets a hash wheeled timer to be used for for timeout scheduling
+    * @return a hash wheeled timer
+    */
+   public Timer getTimer();
 
    /**
     * Gets the role manager
@@ -203,6 +231,12 @@ public interface IFloodlightProviderService extends
     * @return the current module loading state.
     */
    ModuleLoaderState getModuleLoaderState();
+
+   /**
+    * Gets the current number of worker threads
+    * @return Used for netty setup
+    */
+   public int getWorkerThreads();
 
    // paag
    /**
@@ -219,3 +253,4 @@ public interface IFloodlightProviderService extends
     */
    void removeCompletionListener(IControllerCompletionListener listener);
 }
+

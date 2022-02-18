@@ -1,7 +1,6 @@
 package it.unipi.floodlightcontroller.rest;
 
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.MacAddress;

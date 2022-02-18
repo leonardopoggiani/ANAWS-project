@@ -58,10 +58,14 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.core.types.NodePortTuple;
 import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.debugcounter.IDebugCounter;
 import net.floodlightcontroller.debugcounter.IDebugCounterService;
+import net.floodlightcontroller.debugevent.IDebugEventService;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventColumn;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventFieldType;
+import net.floodlightcontroller.debugevent.IEventCategory;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventType;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscovery;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscovery.LDUpdate;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscovery.LinkType;
@@ -69,22 +73,23 @@ import net.floodlightcontroller.linkdiscovery.ILinkDiscovery.SwitchType;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscovery.UpdateOperation;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryListener;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryService;
-import net.floodlightcontroller.linkdiscovery.Link;
 import net.floodlightcontroller.linkdiscovery.web.LinkDiscoveryWebRoutable;
+import net.floodlightcontroller.notification.INotificationManager;
+import net.floodlightcontroller.notification.NotificationManagerFactory;
 import net.floodlightcontroller.packet.BSN;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.LLDP;
 import net.floodlightcontroller.packet.LLDPTLV;
 import net.floodlightcontroller.restserver.IRestApiService;
+import net.floodlightcontroller.routing.Link;
 import net.floodlightcontroller.storage.IResultSet;
 import net.floodlightcontroller.storage.IStorageSourceListener;
 import net.floodlightcontroller.storage.IStorageSourceService;
 import net.floodlightcontroller.storage.OperatorPredicate;
 import net.floodlightcontroller.storage.StorageException;
 import net.floodlightcontroller.threadpool.IThreadPoolService;
-import net.floodlightcontroller.util.OFMessageUtils;
+import net.floodlightcontroller.topology.NodePortTuple;
 
-import org.projectfloodlight.openflow.protocol.OFControllerRole;
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFPacketOut;
@@ -97,6 +102,7 @@ import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.U64;
+import org.projectfloodlight.openflow.util.HexString;
 import org.projectfloodlight.openflow.protocol.OFType;
 import org.projectfloodlight.openflow.protocol.action.OFAction;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
@@ -124,6 +130,8 @@ public class LinkDiscoveryManager implements IOFMessageListener,
 IOFSwitchListener, IStorageSourceListener, ILinkDiscoveryService,
 IFloodlightModule, IInfoProvider {
 	protected static final Logger log = LoggerFactory.getLogger(LinkDiscoveryManager.class);
+	protected static final INotificationManager notifier =
+			NotificationManagerFactory.getNotificationManager(LinkDiscoveryManager.class);
 
 	public static final String MODULE_NAME = "linkdiscovery";
 
@@ -142,12 +150,16 @@ IFloodlightModule, IInfoProvider {
 	private static final String LINK_TYPE = "link_type";
 	private static final String SWITCH_CONFIG_TABLE_NAME = "controller_switchconfig";
 
+	// Event updaters for debug events
+	protected IEventCategory<DirectLinkEvent> eventCategory;
+
 	protected IFloodlightProviderService floodlightProviderService;
 	protected IOFSwitchService switchService;
 	protected IStorageSourceService storageSourceService;
 	protected IThreadPoolService threadPoolService;
 	protected IRestApiService restApiService;
 	protected IDebugCounterService debugCounterService;
+	protected IDebugEventService debugEventService;
 	protected IShutdownService shutdownService;
 
 	// Role
@@ -155,7 +167,7 @@ IFloodlightModule, IInfoProvider {
 
 	// LLDP and BDDP fields
 	private static final byte[] LLDP_STANDARD_DST_MAC_STRING =
-			MacAddress.of("01:80:c2:00:00:0e").getBytes();
+			HexString.fromHexString("01:80:c2:00:00:0e");
 	private static final long LINK_LOCAL_MASK = 0xfffffffffff0L;
 	private static final long LINK_LOCAL_VALUE = 0x0180c2000000L;
 	protected static int EVENT_HISTORY_SIZE = 1024; // in seconds
@@ -271,7 +283,6 @@ IFloodlightModule, IInfoProvider {
 	private IDebugCounter ctrIncoming;
 	private IDebugCounter ctrLinkLocalDrops;
 	private IDebugCounter ctrLldpEol;
-	private IDebugCounter counterPacketOut;
 
 	private final String PACKAGE = LinkDiscoveryManager.class.getPackage().getName();
 
@@ -281,7 +292,7 @@ IFloodlightModule, IInfoProvider {
 	//*********************
 
 	@Override
-	public OFPacketOut generateLLDPMessage(IOFSwitch iofSwitch, OFPort port, 
+	public OFPacketOut generateLLDPMessage(IOFSwitch iofSwitch, OFPort port,
 			boolean isStandard, boolean isReverse) {
 
 		OFPortDesc ofpPort = iofSwitch.getPort(port);
@@ -326,7 +337,7 @@ IFloodlightModule, IInfoProvider {
 		byte[] srcMac = ofpPort.getHwAddr().getBytes();
 		byte[] zeroMac = { 0, 0, 0, 0, 0, 0 };
 		if (Arrays.equals(srcMac, zeroMac)) {
-			log.warn("Port {}/{} has zero hardware address"
+			log.warn("Port {}/{} has zero hareware address"
 					+ "overwrite with lower 6 bytes of dpid",
 					dpid.toString(), ofpPort.getPortNo().getPortNumber());
 			System.arraycopy(dpidArray, 2, srcMac, 0, 6);
@@ -365,7 +376,7 @@ IFloodlightModule, IInfoProvider {
 		 * 
 		 * Note Long.SIZE is in bits (64).
 		 */
-		long time = System.nanoTime() / 1000000;
+		long time = System.currentTimeMillis();
 		long swLatency = iofSwitch.getLatency().getValue();
 		if (log.isTraceEnabled()) {
 			log.trace("SETTING LLDP LATENCY TLV: Current Time {}; {} control plane latency {}; sum {}", new Object[] { time, iofSwitch.getId(), swLatency, time + swLatency });
@@ -404,13 +415,13 @@ IFloodlightModule, IInfoProvider {
 
 		// serialize and wrap in a packet out
 		byte[] data = ethernet.serialize();
-		OFPacketOut.Builder pob = iofSwitch.getOFFactory().buildPacketOut()
-		.setBufferId(OFBufferId.NO_BUFFER)
-		.setActions(getDiscoveryActions(iofSwitch, port))
-		.setData(data);
-		OFMessageUtils.setInPort(pob, OFPort.CONTROLLER);
+		OFPacketOut.Builder pob = iofSwitch.getOFFactory().buildPacketOut();
+		pob.setBufferId(OFBufferId.NO_BUFFER);
+		pob.setInPort(OFPort.ANY);
 
-		log.debug("{}", pob.build());
+		// set data and data length
+		pob.setData(data);
+
 		return pob.build();
 	}
 
@@ -770,7 +781,7 @@ IFloodlightModule, IInfoProvider {
 
 		// Store the time of update to this link, and push it out to
 		// routingEngine
-		long time = System.nanoTime() / 1000000;
+		long time = System.currentTimeMillis();
 		U64 latency = (timestamp != 0 && (time - timestamp) > 0) ? U64.of(time - timestamp) : U64.ZERO;
 		if (log.isTraceEnabled()) {
 			log.trace("COMPUTING FINAL DATAPLANE LATENCY: Current time {}; Dataplane+{} latency {}; Overall latency from {} to {} is {}", 
@@ -1140,8 +1151,6 @@ IFloodlightModule, IInfoProvider {
 		IOFSwitch iofSwitch = switchService.getSwitch(sw);
 		if (iofSwitch == null) {
 			return false;
-		} else if (iofSwitch.getControllerRole() == OFControllerRole.ROLE_SLAVE) {
-			return false;
 		}
 
 		if (port == OFPort.LOCAL) return false;
@@ -1166,7 +1175,7 @@ IFloodlightModule, IInfoProvider {
 	 * @param port
 	 * @return
 	 */
-	protected List<OFAction> getDiscoveryActions(IOFSwitch sw, OFPort port) {
+	protected List<OFAction> getDiscoveryActions (IOFSwitch sw, OFPort port){
 		// set actions
 		List<OFAction> actions = new ArrayList<OFAction>();
 		actions.add(sw.getOFFactory().actions().buildOutput().setPort(port).build());
@@ -1186,20 +1195,30 @@ IFloodlightModule, IInfoProvider {
 	 * @param isReverse
 	 *            indicates whether the LLDP was sent as a response
 	 */
-	protected boolean sendDiscoveryMessage(DatapathId sw, OFPort port,
+	protected void sendDiscoveryMessage(DatapathId sw, OFPort port,
 			boolean isStandard, boolean isReverse) {
 
 		// Takes care of all checks including null pointer checks.
-		if (!isOutgoingDiscoveryAllowed(sw, port, isStandard, isReverse)) {
-			return false;
-		}
+		if (!isOutgoingDiscoveryAllowed(sw, port, isStandard, isReverse))
+			return;
 
 		IOFSwitch iofSwitch = switchService.getSwitch(sw);
-		if (iofSwitch == null) { // fix dereference violations in case race conditions
-			return false;
-		}
-		counterPacketOut.increment();
-		return iofSwitch.write(generateLLDPMessage(iofSwitch, port, isStandard, isReverse));
+		if (iofSwitch == null)             //fix dereference violations in case race conditions
+			return;
+		OFPortDesc ofpPort = iofSwitch.getPort(port);
+
+		OFPacketOut po = generateLLDPMessage(iofSwitch, port, isStandard, isReverse);
+		OFPacketOut.Builder pob = po.createBuilder();
+
+		// Add actions
+		List<OFAction> actions = getDiscoveryActions(iofSwitch, ofpPort.getPortNo());
+		pob.setActions(actions);
+
+		// no need to set length anymore
+
+		// send
+		// no more try-catch. switch will silently fail
+		iofSwitch.write(pob.build());
 	}
 
 	/**
@@ -1413,7 +1432,10 @@ IFloodlightModule, IInfoProvider {
 				LinkType linkType = getLinkType(lt, newInfo);
 				if (linkType == ILinkDiscovery.LinkType.DIRECT_LINK) {
 					log.debug("Inter-switch link detected: {}", lt);
+					eventCategory.newEventNoFlush(new DirectLinkEvent(lt.getSrc(),
+							lt.getSrcPort(), lt.getDst(), lt.getDstPort(), "direct-link-added::rcvd LLDP"));
 				}
+				notifier.postNotification("Link added: " + lt.toString());
 			} else {
 				linkChanged = updateLink(lt, existingInfo, newInfo);
 				if (linkChanged) {
@@ -1421,7 +1443,11 @@ IFloodlightModule, IInfoProvider {
 					LinkType linkType = getLinkType(lt, newInfo);
 					if (linkType == ILinkDiscovery.LinkType.DIRECT_LINK) {
 						log.debug("Inter-switch link updated: {}", lt);
+						eventCategory.newEventNoFlush(new DirectLinkEvent(lt.getSrc(),
+								lt.getSrcPort(), lt.getDst(), lt.getDstPort(),
+								"link-port-state-updated::rcvd LLDP"));
 					}
+					notifier.postNotification("Link updated: " + lt.toString());
 				}
 			}
 
@@ -1529,6 +1555,11 @@ IFloodlightModule, IInfoProvider {
 						linkType,
 						UpdateOperation.LINK_REMOVED));
 
+				// FIXME: link type shows up as invalid now -- thus not checking if
+				// link type is a direct link
+				eventCategory.newEventWithFlush(new DirectLinkEvent(lt.getSrc(),
+						lt.getSrcPort(), lt.getDst(), lt.getDstPort(),
+						"link-deleted::" + reason));
 				// remove link from storage.
 				removeLinkFromStorage(lt);
 
@@ -1537,6 +1568,8 @@ IFloodlightModule, IInfoProvider {
 
 				if (linkType == ILinkDiscovery.LinkType.DIRECT_LINK) {
 					log.info("Inter-switch link removed: {}", lt);
+					notifier.postNotification("Inter-switch link removed: " +
+							lt.toString());
 				} else if (log.isTraceEnabled()) {
 					log.trace("Deleted link {}", lt);
 				}
@@ -1818,9 +1851,9 @@ IFloodlightModule, IInfoProvider {
 		}
 
 		if (autoPortFastFeature)
-			log.debug("Setting autoportfast feature to ON");
+			log.info("Setting autoportfast feature to ON");
 		else
-			log.debug("Setting autoportfast feature to OFF");
+			log.info("Setting autoportfast feature to OFF");
 	}
 
 	/**
@@ -1965,6 +1998,7 @@ IFloodlightModule, IInfoProvider {
 		threadPoolService = context.getServiceImpl(IThreadPoolService.class);
 		restApiService = context.getServiceImpl(IRestApiService.class);
 		debugCounterService = context.getServiceImpl(IDebugCounterService.class);
+		debugEventService = context.getServiceImpl(IDebugEventService.class);
 		shutdownService = context.getServiceImpl(IShutdownService.class);
 
 		// read our config options
@@ -2018,8 +2052,8 @@ IFloodlightModule, IInfoProvider {
 		this.ignoreMACSet = Collections.newSetFromMap(
 				new ConcurrentHashMap<MACRange,Boolean>());
 		this.haListener = new HAListenerDelegate();
-		this.floodlightProviderService.addHAListener(this.haListener);
 		registerLinkDiscoveryDebugCounters();
+		registerLinkDiscoveryDebugEvents();
 	}
 
 	@Override
@@ -2058,9 +2092,7 @@ IFloodlightModule, IInfoProvider {
 			@Override
 			public void run() {
 				try {
-					if (role == null || role == HARole.ACTIVE) { /* don't send if we just transitioned to STANDBY */
-					    discoverLinks();
-					}
+					discoverLinks();
 				} catch (StorageException e) {
 					shutdownService.terminate("Storage exception in LLDP send timer. Terminating process " + e, 0);
 				} catch (Exception e) {
@@ -2141,8 +2173,46 @@ IFloodlightModule, IInfoProvider {
 				"All packets whose srcmac is configured to be dropped by this module");
 		ctrQuarantineDrops = debugCounterService.registerCounter(PACKAGE, "quarantine-drops",
 				"All packets arriving on quarantined ports dropped by this module", IDebugCounterService.MetaData.WARN);
-		counterPacketOut = debugCounterService.registerCounter(PACKAGE, "packet-outs-written",
-				"Packet outs written by the LinkDiscovery", IDebugCounterService.MetaData.WARN);
+	}
+
+	private void registerLinkDiscoveryDebugEvents() throws FloodlightModuleException {
+		if (debugEventService == null) {
+			log.error("Debug Event Service not found.");
+		}
+
+		eventCategory = debugEventService.buildEvent(DirectLinkEvent.class)
+				.setModuleName(PACKAGE)
+				.setEventName("linkevent")
+				.setEventDescription("Direct OpenFlow links discovered or timed-out")
+				.setEventType(EventType.ALWAYS_LOG)
+				.setBufferCapacity(100)
+				.register();
+	}
+
+	public class DirectLinkEvent {
+		@EventColumn(name = "srcSw", description = EventFieldType.DPID)
+		DatapathId srcDpid;
+
+		@EventColumn(name = "srcPort", description = EventFieldType.PRIMITIVE)
+		OFPort srcPort;
+
+		@EventColumn(name = "dstSw", description = EventFieldType.DPID)
+		DatapathId dstDpid;
+
+		@EventColumn(name = "dstPort", description = EventFieldType.PRIMITIVE)
+		OFPort dstPort;
+
+		@EventColumn(name = "reason", description = EventFieldType.STRING)
+		String reason;
+
+		public DirectLinkEvent(DatapathId srcDpid, OFPort srcPort, DatapathId dstDpid,
+				OFPort dstPort, String reason) {
+			this.srcDpid = srcDpid;
+			this.srcPort = srcPort;
+			this.dstDpid = dstDpid;
+			this.dstPort = dstPort;
+			this.reason = reason;
+		}
 	}
 
 	//*********************
@@ -2177,11 +2247,14 @@ IFloodlightModule, IInfoProvider {
 	private class HAListenerDelegate implements IHAListener {
 		@Override
 		public void transitionToActive() {
-			log.warn("Sending LLDPs due to HA change from STANDBY->ACTIVE");
+			if (log.isTraceEnabled()) {
+				log.trace("Sending LLDPs "
+						+ "to HA change from STANDBY->MASTER");
+			}
 			LinkDiscoveryManager.this.role = HARole.ACTIVE;
 			clearAllLinks();
 			readTopologyConfigFromStorage();
-			log.debug("Role Change to Master: Rescheduling discovery tasks");
+			log.debug("Role Change to Master: Rescheduling discovery task.");
 			discoveryTask.reschedule(1, TimeUnit.MICROSECONDS);
 		}
 
@@ -2194,13 +2267,13 @@ IFloodlightModule, IInfoProvider {
 
 		@Override
 		public String getName() {
-			return MODULE_NAME;
+			return LinkDiscoveryManager.this.getName();
 		}
 
 		@Override
 		public boolean isCallbackOrderingPrereq(HAListenerTypeMarker type,
 				String name) {
-			return false;
+			return ("topology".equals(name));
 		}
 
 		@Override
@@ -2211,11 +2284,7 @@ IFloodlightModule, IInfoProvider {
 
 		@Override
 		public void transitionToStandby() {
-            log.warn("Disabling LLDPs due to HA change from ACTIVE->STANDBY");
-            LinkDiscoveryManager.this.role = HARole.STANDBY;
+			//no-op
 		}
 	}
-
-	@Override
-	public void switchDeactivated(DatapathId switchId) { }
 }

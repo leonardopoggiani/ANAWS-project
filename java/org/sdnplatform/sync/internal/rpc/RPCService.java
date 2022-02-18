@@ -1,5 +1,23 @@
 package org.sdnplatform.sync.internal.rpc;
 
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.LinkedTransferQueue;
+
+import net.floodlightcontroller.core.util.SingletonTask;
+import net.floodlightcontroller.debugcounter.IDebugCounterService;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -15,32 +33,11 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.Timer;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedTransferQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import net.floodlightcontroller.core.util.SingletonTask;
-import net.floodlightcontroller.debugcounter.IDebugCounterService;
-
 import org.sdnplatform.sync.internal.SyncManager;
 import org.sdnplatform.sync.internal.config.Node;
 import org.sdnplatform.sync.internal.util.Pair;
-import org.sdnplatform.sync.thrift.MessageType;
 import org.sdnplatform.sync.thrift.SyncMessage;
+import org.sdnplatform.sync.thrift.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * A lightweight RPC mechanism built on netty.
  * @author readams
  */
-public class RPCService{
+public class RPCService {
     protected static final Logger logger =
             LoggerFactory.getLogger(RPCService.class);
 
@@ -57,11 +54,6 @@ public class RPCService{
      */
     protected SyncManager syncManager;
 
-    /**
-     *Tulio Ribeiro
-     */
- 	protected Set<IRPCListener> rpcListeners;
- 	
     /**
      * Debug counter service
      */
@@ -180,7 +172,6 @@ public class RPCService{
         this.syncManager = syncManager;
         this.debugCounter = debugCounter;
         this.timer = timer;
-        this.rpcListeners = new CopyOnWriteArraySet<IRPCListener>();
 
         messageWindows = new ConcurrentHashMap<Short, MessageWindow>();
     }
@@ -308,16 +299,6 @@ public class RPCService{
                 nc.nuke();
             }
             connections.remove(nodeId);
-           
-            /**
-             * Tulio Ribeiro
-             * Inform all registered modules about disconnected node
-             */
-            if (rpcListeners != null) {
-				for (IRPCListener listener : rpcListeners) {
-					listener.disconnectedNode(nodeId);
-				}
-			}
         }
     }
     
@@ -521,16 +502,6 @@ public class RPCService{
             }
             c.nodeChannel = channel;
             c.state = NodeConnectionState.CONNECTED;
-            
-            /**
-             * Tulio Ribeiro
-             * Inform all registered modules about connected node
-             */
-            if (rpcListeners != null) {
-				for (IRPCListener listener : rpcListeners) {
-					listener.connectedNode(nodeId);
-				}
-			}
         }
     }
 
@@ -703,16 +674,4 @@ public class RPCService{
             }
         }
     }
-    
-    
-	//@Override
-	public void addRPCListener(IRPCListener listener) {
-		this.rpcListeners.add(listener);
-	}
-
-	//@Override
-	public void removeRPCListener(IRPCListener listener) {
-		this.rpcListeners.remove(listener);
-	}
-
 }

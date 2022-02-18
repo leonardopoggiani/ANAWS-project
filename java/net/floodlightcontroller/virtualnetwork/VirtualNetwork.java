@@ -46,7 +46,7 @@ public class VirtualNetwork{
         this.name = name;
         this.guid = guid;
         this.gateway = null;
-		this.portToMac = new ConcurrentHashMap<>();
+		this.portToMac = new ConcurrentHashMap<String,MacAddress>();
         return;        
     }
 

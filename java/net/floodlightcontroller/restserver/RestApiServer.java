@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
 
 import org.restlet.Application;
 import org.restlet.Component;
@@ -30,13 +29,10 @@ import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
 import org.restlet.Server;
-import org.restlet.data.Header;
 import org.restlet.data.Parameter;
 import org.restlet.data.Protocol;
 import org.restlet.data.Reference;
 import org.restlet.data.Status;
-import org.restlet.data.Method;
-import org.restlet.engine.header.HeaderConstants;
 import org.restlet.ext.jackson.JacksonRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.routing.Filter;
@@ -63,8 +59,6 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 	private static String keyStore;
 
 	private static String httpsNeedClientAuth = "true";
-
-	private static boolean accessControlAllowAllOrigins = false;
 
 	private static boolean useHttps = false;
 	private static boolean useHttp = false;
@@ -107,63 +101,9 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 				}
 
 			};
-
-			if (accessControlAllowAllOrigins) {
-				Filter crossAccessAllowAll = new Filter() {
-					@Override
-					protected int beforeHandle(Request request, Response response) {
-						// Initialize response headers
-						@SuppressWarnings("unchecked")
-						Series<Header> responseHeaders = (Series<Header>) response
-						.getAttributes().get(HeaderConstants.ATTRIBUTE_HEADERS);
-						if (responseHeaders == null) {
-							responseHeaders = new Series<Header>(Header.class);
-						}
-
-						// Request headers
-						@SuppressWarnings("unchecked")
-						Series<Header> requestHeaders = (Series<Header>) request
-						.getAttributes().get(HeaderConstants.ATTRIBUTE_HEADERS);
-						String requestOrigin = requestHeaders.getFirstValue("Origin",
-								false, "*");
-						String rh = requestHeaders.getFirstValue(
-								"Access-Control-Request-Headers", false, "*");
-
-						// Set CORS headers in response
-						responseHeaders.set(
-								"Access-Control-Expose-Headers",
-								"Authorization, Link");
-						
-						response.setAccessControlAllowOrigin(requestOrigin);
-						response.setAccessControlAllowCredentials(true);
-						response.setAccessControlAllowOrigin(rh);
-
-						HashSet<Method> methods = new HashSet<>();
-						methods.add(Method.GET);
-						methods.add(Method.POST);
-						methods.add(Method.PUT);
-						methods.add(Method.DELETE);
-						response.setAccessControlAllowMethods(methods);
-
-						// Set response headers
-						response.getAttributes().put(HeaderConstants.ATTRIBUTE_HEADERS,
-								responseHeaders);
-
-						// Handle HTTP methods
-						if (org.restlet.data.Method.OPTIONS.equals(request.getMethod())) {
-							return Filter.STOP;
-						}
-						return Filter.CONTINUE;
-					}
-				};
-
-				crossAccessAllowAll.setNext(slashFilter);
-				slashFilter.setNext(baseRouter);
-				return crossAccessAllowAll; /* caaa --> sf --> br */
-			}
-
 			slashFilter.setNext(baseRouter);
-			return slashFilter; /* sf --> br */
+
+			return slashFilter;
 		}
 
 		public void run(FloodlightModuleContext fmlContext, String restHost) {
@@ -319,7 +259,6 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 		String useHttps = configOptions.get("useHttps");
 		String useHttp = configOptions.get("useHttp");
 		String httpsNeedClientAuth = configOptions.get("httpsNeedClientAuthentication");
-		String accessControlAllowOrigin = configOptions.get("accessControlAllowAllOrigins");
 
 		/* HTTPS Access (ciphertext) */
 		if (useHttps == null || path == null || path.isEmpty() || 
@@ -352,7 +291,7 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 		}
 
 		/* HTTP Access (plaintext) */
-		if (useHttp == null || 
+		if (useHttp == null || path == null || path.isEmpty() || 
 				(!useHttp.trim().equalsIgnoreCase("yes") && !useHttp.trim().equalsIgnoreCase("true") &&
 						!useHttp.trim().equalsIgnoreCase("yep") && !useHttp.trim().equalsIgnoreCase("ja") &&
 						!useHttp.trim().equalsIgnoreCase("stimmt")
@@ -366,7 +305,7 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 				RestApiServer.httpPort = port.trim();
 			}	
 		}
-
+		
 		if (RestApiServer.useHttp && RestApiServer.useHttps && RestApiServer.httpPort.equals(RestApiServer.httpsPort)) {
 			logger.error("REST API's HTTP and HTTPS ports cannot be the same. Got " + RestApiServer.httpPort + " for both.");
 			throw new IllegalArgumentException("REST API's HTTP and HTTPS ports cannot be the same. Got " + RestApiServer.httpPort + " for both.");
@@ -387,13 +326,6 @@ public class RestApiServer implements IFloodlightModule, IRestApiService {
 			logger.warn("HTTP disabled; HTTP will not be used to connect to the REST API.");
 		} else {
 			logger.warn("HTTP enabled; Allowing unsecure access to REST API on port {}.", RestApiServer.httpPort);
-		}
-
-		if (accessControlAllowOrigin != null) {
-			try {
-				RestApiServer.accessControlAllowAllOrigins = Boolean.parseBoolean(accessControlAllowOrigin);
-			} catch (Exception e) { }
-			logger.warn("CORS access control allow ALL origins: {}", RestApiServer.accessControlAllowAllOrigins);
 		}
 	}
 

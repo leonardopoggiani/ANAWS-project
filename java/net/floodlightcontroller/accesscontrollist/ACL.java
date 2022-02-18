@@ -1,7 +1,7 @@
 /**
  *    Copyright 2015, Big Switch Networks, Inc.
  *    Originally created by Pengfei Lu, Network and Cloud Computing Laboratory, Dalian University of Technology, China 
- *    Advisers: Keqiu Li, Heng Qi and Haisheng Yu 
+ *    Advisers: Keqiu Li and Heng Qi 
  *    This work is supported by the State Key Program of National Natural Science of China(Grant No. 61432002) 
  *    and Prospective Research Project on Future Networks in Jiangsu Future Networks Innovation Institute.
  *    
@@ -44,10 +44,9 @@ import net.floodlightcontroller.devicemanager.IDeviceService;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.restserver.IRestApiService;
-import net.floodlightcontroller.staticentry.StaticEntryPusher;
+import net.floodlightcontroller.staticflowentry.StaticFlowEntryPusher;
 import net.floodlightcontroller.storage.IStorageSourceService;
 
-import org.projectfloodlight.openflow.protocol.match.MatchFields;
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.util.HexString;
 import org.slf4j.Logger;
@@ -174,7 +173,7 @@ public class ACL implements IACLService, IFloodlightModule, IDeviceListener {
 
 		for (Set<String> flowNameSet : ruleId2FlowName.values()) {
 			for (String flowName : flowNameSet) {
-				storageSource.deleteRowAsync(StaticEntryPusher.TABLE_NAME,
+				storageSource.deleteRowAsync("controller_staticflowtableentry",
 						flowName);
 				logger.debug("ACL flow(id:{}) is removed.", flowName);
 			}
@@ -213,7 +212,7 @@ public class ACL implements IACLService, IFloodlightModule, IDeviceListener {
 	private void enforceRemovedRule(int ruleId) {
 		if (ruleId2FlowName.containsKey(ruleId)) {
 			for (String flowName : ruleId2FlowName.get(ruleId)) {
-				storageSource.deleteRowAsync(StaticEntryPusher.TABLE_NAME,
+				storageSource.deleteRowAsync("controller_staticflowtableentry",
 						flowName);
 				logger.debug("ACL flow(id:{}) is removed.", flowName);
 			}
@@ -237,66 +236,66 @@ public class ACL implements IACLService, IFloodlightModule, IDeviceListener {
 
 			HashMap<String, Object> flow = new HashMap<String, Object>();
 
-			flow.put(StaticEntryPusher.Columns.COLUMN_SWITCH, dpid);
-			flow.put(StaticEntryPusher.Columns.COLUMN_NAME, flowName);
-			flow.put(StaticEntryPusher.Columns.COLUMN_ACTIVE,
+			flow.put(StaticFlowEntryPusher.COLUMN_SWITCH, dpid);
+			flow.put(StaticFlowEntryPusher.COLUMN_NAME, flowName);
+			flow.put(StaticFlowEntryPusher.COLUMN_ACTIVE,
 					Boolean.toString(true));
-			flow.put(StaticEntryPusher.Columns.COLUMN_COOKIE, "0");
-			flow.put(StaticEntryPusher.Columns.COLUMN_PRIORITY,
+			flow.put(StaticFlowEntryPusher.COLUMN_COOKIE, "0");
+			flow.put(StaticFlowEntryPusher.COLUMN_PRIORITY,
 					Integer.toString(priority));
 
-			flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.ETH_TYPE), "2048");
-			flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.IPV4_SRC), rule.getNw_src());
+			flow.put(StaticFlowEntryPusher.COLUMN_DL_TYPE, "2048");
+			flow.put(StaticFlowEntryPusher.COLUMN_NW_SRC, rule.getNw_src());
 
 			if (rule.getNw_dst() != null) {
-				flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.IPV4_DST), rule.getNw_dst());
+				flow.put(StaticFlowEntryPusher.COLUMN_NW_DST, rule.getNw_dst());
 			}
 			if (rule.getNw_proto() != 0) {
-				flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.IP_PROTO),
+				flow.put(StaticFlowEntryPusher.COLUMN_NW_PROTO,
 						Integer.toString(rule.getNw_proto()));
 			}
 			if (rule.getAction() == Action.ALLOW) {
-				flow.put(StaticEntryPusher.Columns.COLUMN_ACTIONS,
+				flow.put(StaticFlowEntryPusher.COLUMN_ACTIONS,
 						"output=controller");
 			}
 			if (rule.getTp_dst() != 0) {
-				flow.put(StaticEntryPusher.Columns.COLUMN_TP_DST,
+				flow.put(StaticFlowEntryPusher.COLUMN_TP_DST,
 						Integer.toString(rule.getTp_dst()));
 			}
 
 			storageSource
-					.insertRowAsync(StaticEntryPusher.TABLE_NAME, flow);
+					.insertRowAsync(StaticFlowEntryPusher.TABLE_NAME, flow);
 
 		} else {
 
 			HashMap<String, Object> flow = new HashMap<String, Object>();
 
-			flow.put(StaticEntryPusher.Columns.COLUMN_SWITCH, dpid);
-			flow.put(StaticEntryPusher.Columns.COLUMN_NAME, flowName);
-			flow.put(StaticEntryPusher.Columns.COLUMN_ACTIVE,
+			flow.put(StaticFlowEntryPusher.COLUMN_SWITCH, dpid);
+			flow.put(StaticFlowEntryPusher.COLUMN_NAME, flowName);
+			flow.put(StaticFlowEntryPusher.COLUMN_ACTIVE,
 					Boolean.toString(true));
-			flow.put(StaticEntryPusher.Columns.COLUMN_COOKIE, "0");
-			flow.put(StaticEntryPusher.Columns.COLUMN_PRIORITY,
+			flow.put(StaticFlowEntryPusher.COLUMN_COOKIE, "0");
+			flow.put(StaticFlowEntryPusher.COLUMN_PRIORITY,
 					Integer.toString(priority));
 
-			flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.ETH_TYPE), "2048");
-			flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.IPV4_DST), rule.getNw_dst());
+			flow.put(StaticFlowEntryPusher.COLUMN_DL_TYPE, "2048");
+			flow.put(StaticFlowEntryPusher.COLUMN_NW_DST, rule.getNw_dst());
 
 			if (rule.getNw_proto() != 0) {
-				flow.put(StaticEntryPusher.matchFieldToColumnName(MatchFields.IP_PROTO),
+				flow.put(StaticFlowEntryPusher.COLUMN_NW_PROTO,
 						Integer.toString(rule.getNw_proto()));
 			}
 			if (rule.getAction() == Action.ALLOW) {
-				flow.put(StaticEntryPusher.Columns.COLUMN_ACTIONS,
+				flow.put(StaticFlowEntryPusher.COLUMN_ACTIONS,
 						"output=controller");
 			}
 			if (rule.getTp_dst() != 0) {
-				flow.put(StaticEntryPusher.Columns.COLUMN_TP_DST,
+				flow.put(StaticFlowEntryPusher.COLUMN_TP_DST,
 						Integer.toString(rule.getTp_dst()));
 			}
 
 			storageSource
-					.insertRowAsync(StaticEntryPusher.TABLE_NAME, flow);
+					.insertRowAsync(StaticFlowEntryPusher.TABLE_NAME, flow);
 
 		}
 		addRuleToSwitchMapping(rule.getId(), dpid);
@@ -363,7 +362,7 @@ public class ACL implements IACLService, IFloodlightModule, IDeviceListener {
 			return;
 		}
 
-		String dpid = HexString.toHexString(switchPort[0].getNodeId()
+		String dpid = HexString.toHexString(switchPort[0].getSwitchDPID()
 				.getLong());
 		String ip = IPv4.fromIPv4Address(ips[0].getInt());
 		logger.debug("AP(dpid:{},ip:{}) is added", dpid, ip);
@@ -429,7 +428,7 @@ public class ACL implements IACLService, IFloodlightModule, IDeviceListener {
 		SwitchPort[] switchPort = device.getAttachmentPoints();
 		IPv4Address[] ips = device.getIPv4Addresses();
 
-		String dpid = HexString.toHexString(switchPort[0].getNodeId()
+		String dpid = HexString.toHexString(switchPort[0].getSwitchDPID()
 				.getLong());
 		String ip = null;
 		// some device may first appear with no IP address(default set to

@@ -61,30 +61,14 @@ public class SwitchStatisticsResource extends SwitchResourceBase {
 				values = getSwitchStatistics(switchId, OFStatsType.PORT);
 				result.setStatType(OFStatsType.PORT);
 				break;
-            case OFStatsTypeStrings.PORT_DESC:
-                values = getSwitchStatistics(switchId, OFStatsType.PORT_DESC);
-                result.setStatType(OFStatsType.PORT_DESC);
-                break;
 			case OFStatsTypeStrings.QUEUE:
 				values = getSwitchStatistics(switchId, OFStatsType.QUEUE);
 				result.setStatType(OFStatsType.QUEUE);
 				break;
-			case OFStatsTypeStrings.QUEUE_DESC:
-                values = getSwitchStatistics(switchId, OFStatsType.QUEUE_DESC);
-                result.setStatType(OFStatsType.QUEUE_DESC);
-                break;
 			case OFStatsTypeStrings.FLOW:
 				values = getSwitchStatistics(switchId, OFStatsType.FLOW);
 				result.setStatType(OFStatsType.FLOW);
 				break;
-			case OFStatsTypeStrings.FLOW_LIGHTWEIGHT:
-                values = getSwitchStatistics(switchId, OFStatsType.FLOW_LIGHTWEIGHT);
-                result.setStatType(OFStatsType.FLOW_LIGHTWEIGHT);
-                break;
-			case OFStatsTypeStrings.FLOW_MONITOR:
-                values = getSwitchStatistics(switchId, OFStatsType.FLOW_MONITOR);
-                result.setStatType(OFStatsType.FLOW_MONITOR);
-                break;
 			case OFStatsTypeStrings.AGGREGATE:
 				values = getSwitchStatistics(switchId, OFStatsType.AGGREGATE);
 				result.setStatType(OFStatsType.AGGREGATE);
@@ -93,6 +77,10 @@ public class SwitchStatisticsResource extends SwitchResourceBase {
 				values = getSwitchStatistics(switchId, OFStatsType.DESC);
 				result.setStatType(OFStatsType.DESC);
 				break;			
+			case OFStatsTypeStrings.PORT_DESC:
+				values = getSwitchStatistics(switchId, OFStatsType.PORT_DESC);
+				result.setStatType(OFStatsType.PORT_DESC);
+				break;
 			case OFStatsTypeStrings.GROUP:
 				values = getSwitchStatistics(switchId, OFStatsType.GROUP);
 				result.setStatType(OFStatsType.GROUP);
@@ -121,10 +109,6 @@ public class SwitchStatisticsResource extends SwitchResourceBase {
 				values = getSwitchStatistics(switchId, OFStatsType.TABLE);
 				result.setStatType(OFStatsType.TABLE);
 				break;
-			case OFStatsTypeStrings.TABLE_DESC:
-                values = getSwitchStatistics(switchId, OFStatsType.TABLE_DESC);
-                result.setStatType(OFStatsType.TABLE_DESC);
-                break;
 			case OFStatsTypeStrings.TABLE_FEATURES:
 				values = getSwitchStatistics(switchId, OFStatsType.TABLE_FEATURES);
 				result.setStatType(OFStatsType.TABLE_FEATURES);
@@ -133,14 +117,6 @@ public class SwitchStatisticsResource extends SwitchResourceBase {
 				values = getSwitchFeaturesReply(switchId);
 				result.setStatType(OFStatsType.EXPERIMENTER);
 				break;
-			case OFStatsTypeStrings.BUNDLE_FEATURES:
-                values = getSwitchStatistics(switchId, OFStatsType.BUNDLE_FEATURES);
-                result.setStatType(OFStatsType.BUNDLE_FEATURES);
-                break;
-			case OFStatsTypeStrings.CONTROLLER_STATUS:
-                values = getSwitchStatistics(switchId, OFStatsType.CONTROLLER_STATUS);
-                result.setStatType(OFStatsType.CONTROLLER_STATUS);
-                break;  
 			case OFStatsTypeStrings.FEATURES:
 				values = getSwitchFeaturesReply(switchId);
 				result.setStatType(null); // we will assume anything in "values" with a null stattype is "features"
@@ -150,7 +126,7 @@ public class SwitchStatisticsResource extends SwitchResourceBase {
 			}
 		} else {
 			log.error("Invalid or disconnected switch {}", switchIdStr);
-			// if there was an error, the serializer will report it
+			// if there was an error, the serializer will 
 		}
 		
 		result.setDatapathId(switchId);

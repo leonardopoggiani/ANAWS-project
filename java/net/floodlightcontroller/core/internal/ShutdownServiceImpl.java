@@ -77,6 +77,7 @@ public class ShutdownServiceImpl implements IFloodlightModule,
         shutdownListeners.add(listener);
     }
 
+    @SuppressFBWarnings(value="DM_EXIT", justification="exit by design")
     @Override
     public void terminate(@Nullable final String reason, final int exitCode) {
         final String paddedReason;
@@ -124,6 +125,7 @@ public class ShutdownServiceImpl implements IFloodlightModule,
         System.exit(exitCode);
     }
 
+    @SuppressFBWarnings(value="DM_EXIT", justification="exit by design")
     @Override
     public void terminate(final String reason, final Throwable e, final int exitCode) {
         final String paddedReason;
@@ -163,5 +165,6 @@ public class ShutdownServiceImpl implements IFloodlightModule,
         logger.error("**************************************************");
         // Game Over.
         System.exit(exitCode);
+
     }
 }

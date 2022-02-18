@@ -20,7 +20,6 @@ package net.floodlightcontroller.routing;
 import java.util.List;
 
 import org.projectfloodlight.openflow.protocol.match.Match;
-import org.projectfloodlight.openflow.types.U64;
 
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.FloodlightContextStore;
@@ -64,7 +63,4 @@ public interface IRoutingDecision {
     public void setMatch(Match match);
     public int getHardTimeout();
     public void setHardTimeout(short hardTimeout);
-    public U64 getDescriptor();
-    public void setDescriptor(U64 descriptor);
-    
 }

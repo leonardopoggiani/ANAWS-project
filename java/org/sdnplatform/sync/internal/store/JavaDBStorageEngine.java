@@ -197,12 +197,10 @@ public class JavaDBStorageEngine implements IStorageEngine<ByteArray, byte[]> {
                 update.execute();
                 dbConnection.commit();
             } catch (SyncException e) {
-            	if(dbConnection != null)
-            		dbConnection.rollback();
+                dbConnection.rollback();
                 throw e;
             } catch (Exception e) {
-            	if(dbConnection != null)
-            		dbConnection.rollback();
+                dbConnection.rollback();
                 throw new PersistException("Could not retrieve key from database",
                                            e);
             } finally {

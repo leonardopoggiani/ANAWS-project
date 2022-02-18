@@ -123,11 +123,11 @@ public class DeviceIterator extends FilterIterator<Device> {
             match = false;
             for (SwitchPort sp : sps) {
                 if (!switchDPID.equals(DatapathId.NONE)) {
-                    if (!switchDPID.equals(sp.getNodeId()))
+                    if (!switchDPID.equals(sp.getSwitchDPID()))
                         return false;
                 }
                 if (!switchPort.equals(OFPort.ZERO)) {
-                    if (!switchPort.equals(sp.getPortId()))
+                    if (!switchPort.equals(sp.getPort()))
                         return false;
                 }
                 match = true;

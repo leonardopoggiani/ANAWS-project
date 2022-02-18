@@ -18,9 +18,9 @@
 package net.floodlightcontroller.routing;
 import java.util.HashMap;
 
-import org.projectfloodlight.openflow.types.DatapathId;
+import net.floodlightcontroller.routing.Link;
 
-import net.floodlightcontroller.linkdiscovery.Link;
+import org.projectfloodlight.openflow.types.DatapathId;
 
 public class BroadcastTree {
     protected HashMap<DatapathId, Link> links;

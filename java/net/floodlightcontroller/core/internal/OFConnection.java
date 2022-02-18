@@ -44,7 +44,6 @@ import net.floodlightcontroller.core.IOFConnectionBackend;
 import net.floodlightcontroller.core.SwitchDisconnectedException;
 import net.floodlightcontroller.debugcounter.IDebugCounterService;
 import net.floodlightcontroller.util.IterableUtils;
-import net.floodlightcontroller.util.OFMessageUtils;
 
 import org.projectfloodlight.openflow.protocol.OFErrorMsg;
 import org.projectfloodlight.openflow.protocol.OFFactory;
@@ -192,7 +191,7 @@ public class OFConnection implements IOFConnection, IOFConnectionBackend{
 			return Futures.immediateFailedFuture(new SwitchDisconnectedException(getDatapathId()));
 		}
 
-		DeliverableListenableFuture<R> future = new DeliverableListenableFuture<R>(request);
+		DeliverableListenableFuture<R> future = new DeliverableListenableFuture<R>();
 		xidDeliverableMap.put(request.getXid(), future);
 		listener.messageWritten(this, request);
 		this.write(request);
@@ -207,7 +206,7 @@ public class OFConnection implements IOFConnection, IOFConnectionBackend{
 		}
 
 		final DeliverableListenableFuture<List<REPLY>> future =
-				new DeliverableListenableFuture<List<REPLY>>(request);
+				new DeliverableListenableFuture<List<REPLY>>();
 
 		Deliverable<REPLY> deliverable = new Deliverable<REPLY>() {
 			private final List<REPLY> results = Collections
@@ -235,11 +234,6 @@ public class OFConnection implements IOFConnection, IOFConnectionBackend{
 			@Override
 			public boolean cancel(boolean mayInterruptIfRunning) {
 				return future.cancel(mayInterruptIfRunning);
-			}
-
-			@Override
-			public OFMessage getRequest() {
-				return future.getRequest();
 			}
 		};
 
@@ -279,10 +273,6 @@ public class OFConnection implements IOFConnection, IOFConnectionBackend{
 
 	private void registerDeliverable(long xid, Deliverable<?> deliverable) {
 		this.xidDeliverableMap.put(xid, deliverable);
-		setDeliverableTimeout(xid);
-	}
-
-	private void setDeliverableTimeout(long xid) {
 		timer.newTimeout(new TimeOutDeliverable(xid), DELIVERABLE_TIME_OUT, DELIVERABLE_TIME_OUT_UNIT);
 	}
 
@@ -292,18 +282,12 @@ public class OFConnection implements IOFConnection, IOFConnectionBackend{
 		Deliverable<OFMessage> deliverable =
 		(Deliverable<OFMessage>) this.xidDeliverableMap.get(reply.getXid());
 		if (deliverable != null) {
-			boolean validReply = true;
 			if(reply instanceof OFErrorMsg) {
 				deliverable.deliverError(new OFErrorMsgException((OFErrorMsg) reply));
 			} else {
-				if (OFMessageUtils.isReplyForRequest(deliverable.getRequest(), reply)) {
-					deliverable.deliver(reply);
-				} else {
-					validReply = false;
-					setDeliverableTimeout(reply.getXid());
-				}
+				deliverable.deliver(reply);
 			}
-			if (validReply && deliverable.isDone())
+			if (deliverable.isDone())
 				this.xidDeliverableMap.remove(reply.getXid());
 			return true;
 		} else {

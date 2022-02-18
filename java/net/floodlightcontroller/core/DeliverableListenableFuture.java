@@ -1,7 +1,5 @@
 package net.floodlightcontroller.core;
 
-import org.projectfloodlight.openflow.protocol.OFMessage;
-
 import com.google.common.util.concurrent.AbstractFuture;
 
 /** Implementation of a ListenableFuture that provides a Deliverable interface to
@@ -12,14 +10,7 @@ import com.google.common.util.concurrent.AbstractFuture;
  * @param <T>
  */
 public class DeliverableListenableFuture<T> extends AbstractFuture<T> implements Deliverable<T> {
-
-	private OFMessage request;
-
-	public DeliverableListenableFuture(OFMessage msg) {
-		this.request = msg;
-	}
-
-	@Override
+    @Override
     public void deliver(final T result) {
         set(result);
     }
@@ -27,10 +18,5 @@ public class DeliverableListenableFuture<T> extends AbstractFuture<T> implements
     @Override
     public void deliverError(final Throwable cause) {
         setException(cause);
-    }
-
-    @Override
-    public OFMessage getRequest() {
-    	return request;
     }
 }

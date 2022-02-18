@@ -87,14 +87,9 @@ public class NullPktInProcessingTime
     }
 
     @Override
-    public void bootstrap() {
+    public void bootstrap(List<IOFMessageListener> listeners) {
         if (!inited)
-            ctb = new CumulativeTimeBucket();
-    }
-
-    @Override
-    public void addListener(IOFMessageListener listener) {
-        ctb.addListener(listener);
+            ctb = new CumulativeTimeBucket(listeners);
     }
 
     @Override

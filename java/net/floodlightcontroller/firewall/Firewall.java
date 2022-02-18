@@ -37,10 +37,8 @@ import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv4AddressWithMask;
 import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
-import org.projectfloodlight.openflow.types.Masked;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TransportPort;
-import org.projectfloodlight.openflow.types.U64;
 
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.IOFMessageListener;
@@ -49,7 +47,6 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.core.util.AppCookie;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import net.floodlightcontroller.devicemanager.IDeviceService;
 
@@ -61,17 +58,13 @@ import net.floodlightcontroller.packet.TCP;
 import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingDecision;
-import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.RoutingDecision;
 import net.floodlightcontroller.storage.IResultSet;
 import net.floodlightcontroller.storage.IStorageSourceService;
 import net.floodlightcontroller.storage.StorageException;
-import net.floodlightcontroller.util.OFMessageUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.ImmutableList;
 
 /**
  * Stateless firewall implemented as a Google Summer of Code project.
@@ -83,20 +76,11 @@ import com.google.common.collect.ImmutableList;
  */
 public class Firewall implements IFirewallService, IOFMessageListener,
 IFloodlightModule {
-	private static final short APP_ID = 30;
-	static {
-		AppCookie.registerApp(APP_ID, "Firewall");
-	}
-	private static final U64 DENY_BCAST_COOKIE = AppCookie.makeCookie(APP_ID, 0xaaaaaaL);
-	private static final U64 ALLOW_BCAST_COOKIE = AppCookie.makeCookie(APP_ID, 0x555555L);
-	private static final U64 RULE_MISS_COOKIE = AppCookie.makeCookie(APP_ID, 0xffffffL);
-	static final U64 DEFAULT_COOKIE = AppCookie.makeCookie(APP_ID, 0xffffffL);
 
 	// service modules needed
 	protected IFloodlightProviderService floodlightProvider;
 	protected IStorageSourceService storageSource;
 	protected IRestApiService restApi;
-	protected IRoutingService routingService;
 	protected static Logger logger;
 
 	protected List<FirewallRule> rules; // protected by synchronized
@@ -177,7 +161,6 @@ IFloodlightModule {
 		l.add(IFloodlightProviderService.class);
 		l.add(IStorageSourceService.class);
 		l.add(IRestApiService.class);
-		l.add(IRoutingService.class);
 		return l;
 	}
 
@@ -296,7 +279,6 @@ IFloodlightModule {
 		floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
 		storageSource = context.getServiceImpl(IStorageSourceService.class);
 		restApi = context.getServiceImpl(IRestApiService.class);
-		routingService = context.getServiceImpl(IRoutingService.class);
 		rules = new ArrayList<FirewallRule>();
 		logger = LoggerFactory.getLogger(Firewall.class);
 
@@ -327,9 +309,7 @@ IFloodlightModule {
 		switch (msg.getType()) {
 		case PACKET_IN:
 			IRoutingDecision decision = null;
-			if (cntx == null) {
-				logger.warn("Firewall unable to request packet drop: FloodlightContext is null.");
-			} else {
+			if (cntx != null) {
 				decision = IRoutingDecision.rtStore.get(cntx, IRoutingDecision.CONTEXT_DECISION);
 				return this.processPacketInMessage(sw, (OFPacketIn) msg, decision, cntx);
 			}
@@ -343,17 +323,8 @@ IFloodlightModule {
 
 	@Override
 	public void enableFirewall(boolean enabled) {
-		if(this.enabled != enabled) {
-			logger.info("Setting firewall to {}", enabled);
-			this.enabled = enabled;
-
-			List<Masked<U64>> changes = ImmutableList.of(
-						Masked.of(DEFAULT_COOKIE, AppCookie.getAppFieldMask())
-					);
-
-			// Add announcement that all firewall decisions changed
-			routingService.handleRoutingDecisionChange(changes);
-		}
+		logger.info("Setting firewall to {}", enabled);
+		this.enabled = enabled;
 	}
 
 	@Override
@@ -441,18 +412,6 @@ IFloodlightModule {
 		entry.put(COLUMN_PRIORITY, Integer.toString(rule.priority));
 		entry.put(COLUMN_ACTION, Integer.toString(rule.action.ordinal()));
 		storageSource.insertRow(TABLE_NAME, entry);
-		
-		U64 singleRuleMask = AppCookie.getAppFieldMask().or(AppCookie.getUserFieldMask());
-		ImmutableList.Builder<Masked<U64>> changesBuilder = ImmutableList.builder();
-		Iterator<FirewallRule> iter = this.rules.iterator();
-		while (iter.hasNext()) {
-			FirewallRule r = iter.next();
-			if (r.priority >= rule.priority) {
-				changesBuilder.add(Masked.of(AppCookie.makeCookie(APP_ID, r.ruleid), singleRuleMask));
-			}
-		}
-		changesBuilder.add(Masked.of(RULE_MISS_COOKIE, singleRuleMask));
-		routingService.handleRoutingDecisionChange(changesBuilder.build());
 	}
 
 	@Override
@@ -468,17 +427,6 @@ IFloodlightModule {
 		}
 		// delete from database
 		storageSource.deleteRow(TABLE_NAME, Integer.toString(ruleid));
-		
-		//Add announcement that the rule has been deleted
-		Masked<U64> delDescriptor = Masked.of(
-				AppCookie.makeCookie(APP_ID, ruleid),
-				AppCookie.getAppFieldMask().or(AppCookie.getUserFieldMask()));
-		
-		List<Masked<U64>> changes = ImmutableList.of(delDescriptor);
-		
-		//Add announcement that rule is added
-		// should we try to delete the flow even if not found in this.rules
-		routingService.handleRoutingDecisionChange(changes);
 	}
 
 	/**
@@ -593,7 +541,7 @@ IFloodlightModule {
 
 	public Command processPacketInMessage(IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx) {
 		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-		OFPort inPort = OFMessageUtils.getInPort(pi);
+		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
 
 		// Allowing L2 broadcast + ARP broadcast request (also deny malformed
 		// broadcasts -> L2 broadcast + L3 unicast)
@@ -612,7 +560,6 @@ IFloodlightModule {
 				decision = new RoutingDecision(sw.getId(), inPort, 
 						IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE),
 						IRoutingDecision.RoutingAction.MULTICAST);
-				decision.setDescriptor(ALLOW_BCAST_COOKIE);
 				decision.addToContext(cntx);
 			} else {
 				if (logger.isTraceEnabled()) {
@@ -622,7 +569,6 @@ IFloodlightModule {
 				decision = new RoutingDecision(sw.getId(), inPort,
 						IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE),
 						IRoutingDecision.RoutingAction.DROP);
-				decision.setDescriptor(DENY_BCAST_COOKIE);
 				decision.addToContext(cntx);
 			}
 			return Command.CONTINUE;
@@ -635,7 +581,6 @@ IFloodlightModule {
 		 * else if (eth.getEtherType() == Ethernet.TYPE_ARP) {
 		 * logger.info("allowing ARP traffic"); decision = new
 		 * FirewallDecision(IRoutingDecision.RoutingAction.FORWARD_OR_FLOOD);
-		 * decision.setDescriptor(ALLOW_BCAST_COOKIE);
 		 * decision.addToContext(cntx); return Command.CONTINUE; }
 		 */
 
@@ -651,11 +596,6 @@ IFloodlightModule {
 						IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE), 
 						IRoutingDecision.RoutingAction.DROP);
 				decision.setMatch(rmp.match);
-				if (rule == null) {
-					decision.setDescriptor(RULE_MISS_COOKIE);
-				} else {
-					decision.setDescriptor(AppCookie.makeCookie(APP_ID, rule.ruleid));
-				}
 				decision.addToContext(cntx);
 				if (logger.isTraceEnabled()) {
 					if (rule == null) {
@@ -670,7 +610,6 @@ IFloodlightModule {
 						IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE),
 						IRoutingDecision.RoutingAction.FORWARD_OR_FLOOD);
 				decision.setMatch(rmp.match);
-				decision.setDescriptor(AppCookie.makeCookie(APP_ID, rule.ruleid));
 				decision.addToContext(cntx);
 				if (logger.isTraceEnabled()) {
 					logger.trace("Allow rule={} match for PacketIn={}", rule, pi);

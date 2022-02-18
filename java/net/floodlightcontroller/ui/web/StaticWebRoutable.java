@@ -72,9 +72,7 @@ public class StaticWebRoutable implements RestletRoutable, IFloodlightModule {
 	@Override
 	public Restlet getRestlet(Context context) {
         Router router = new Router(context);
-        Directory dir = new Directory(context, "clap://classloader/web/");
-        dir.setIndexName("index.html"); /* redirect from <ip>:<port>/ui/ --> /ui/index.html */
-        router.attach("", dir);
+        router.attach("", new Directory(context, "clap://classloader/web/"));
         context.setClientDispatcher(new Client(context, Protocol.CLAP));
         return router;
 	}

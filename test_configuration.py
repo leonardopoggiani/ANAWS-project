@@ -1,14 +1,15 @@
 from __future__ import print_function
 
 import os
-from mininet.topo import Topo
 from mininet.net import Mininet
 from mininet.node import Node
 from mininet.log import setLogLevel, info
 from mininet.cli import CLI
 from mininet.link import Intf
 from mininet.node import RemoteController, OVSKernelSwitch, Host
+from time import sleep
 
+# sudo mn --topo=linear,4 --mac --switch=ovsk --controller=remote,ip=127.0.0.1,port=6653,protocols=OpenFlow13 --ipbase=10.0.0.0
 
 def run():
         

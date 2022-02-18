@@ -21,9 +21,8 @@ import java.util.List;
 import java.util.Set;
 
 import net.floodlightcontroller.core.internal.IOFSwitchService;
-import net.floodlightcontroller.core.types.JsonObjectWrapper;
-import net.floodlightcontroller.core.types.NodePortTuple;
 import net.floodlightcontroller.topology.ITopologyService;
+import net.floodlightcontroller.topology.NodePortTuple;
 
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.OFPort;
@@ -32,7 +31,7 @@ import org.restlet.resource.ServerResource;
 
 public class EnabledPortsResource extends ServerResource {
     @Get("json")
-    public JsonObjectWrapper retrieve() {
+    public List<NodePortTuple> retrieve() {
         List<NodePortTuple> result = new ArrayList<NodePortTuple>();
 
         IOFSwitchService switchService =
@@ -43,14 +42,11 @@ public class EnabledPortsResource extends ServerResource {
                 (ITopologyService) getContext().getAttributes().
                 get(ITopologyService.class.getCanonicalName());
 
-        if (switchService == null || topologyService == null) {
-            return JsonObjectWrapper.of(result);
-        }
+        if (switchService == null || topologyService == null)
+            return result;
 
         Set<DatapathId> switches = switchService.getAllSwitchDpids();
-        if (switches == null) {
-            return JsonObjectWrapper.of(result);
-        }
+        if (switches == null) return result;
 
         for(DatapathId sw: switches) {
             Set<OFPort> ports = topologyService.getPorts(sw);
@@ -59,6 +55,6 @@ public class EnabledPortsResource extends ServerResource {
                 result.add(new NodePortTuple(sw, p));
             }
         }
-        return JsonObjectWrapper.of(result);
+        return result;
     }
 }

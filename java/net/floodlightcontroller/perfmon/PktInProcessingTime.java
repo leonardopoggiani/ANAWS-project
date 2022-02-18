@@ -96,19 +96,12 @@ public class PktInProcessingTime
     protected static final int ONE_BUCKET_DURATION_SECONDS = 10;// seconds
     protected static final long ONE_BUCKET_DURATION_NANOSECONDS  =
                                 ONE_BUCKET_DURATION_SECONDS * 1000000000;
-
+    
     @Override
-    public void bootstrap() {
-        if (ctb == null) {
-            ctb = new CumulativeTimeBucket();
-        }
+    public void bootstrap(List<IOFMessageListener> listeners) {
+            ctb = new CumulativeTimeBucket(listeners);
     }
-
-    @Override
-    public void addListener(IOFMessageListener listener) {
-        ctb.addListener(listener);
-    }
-
+    
     @Override
     public boolean isEnabled() {
         return isEnabled;
@@ -117,7 +110,7 @@ public class PktInProcessingTime
     @Override
     public void setEnabled(boolean enabled) {
     	if(enabled){
-            bootstrap();
+    		bootstrap(floodlightProvider.getListeners().get(OFType.PACKET_IN));
     	}
         this.isEnabled = enabled;
         logger.debug("Setting module to " + isEnabled);

@@ -19,8 +19,6 @@ package net.floodlightcontroller.loadbalancer;
 import java.util.Collection;
 
 import org.restlet.resource.Get;
-import org.restlet.resource.Post;
-import org.restlet.resource.Put;
 import org.restlet.resource.ServerResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,19 +38,4 @@ public class PoolMemberResource extends ServerResource {
         else
             return null;
     }
-    
-    @Put
-	@Post
-	public int setPriorityToMember(){
-
-		String poolId = (String) getRequestAttributes().get("pool");
-		String memberId = (String) getRequestAttributes().get("member");
-
-		ILoadBalancerService lbs =
-				(ILoadBalancerService)getContext().getAttributes().
-				get(ILoadBalancerService.class.getCanonicalName());
-
-		return lbs.setPriorityToMember(poolId,memberId);
-
-	}
 }

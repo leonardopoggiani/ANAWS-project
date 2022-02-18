@@ -1,17 +1,24 @@
 package net.floodlightcontroller.core.internal;
 
-import com.google.common.base.Preconditions;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
+
+import javax.annotation.Nonnull;
+
 import net.floodlightcontroller.core.IOFConnectionBackend;
 import net.floodlightcontroller.core.IOFSwitchBackend;
 import net.floodlightcontroller.core.IOFSwitchDriver;
 import net.floodlightcontroller.core.SwitchDescription;
+
 import org.projectfloodlight.openflow.protocol.OFFactory;
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
-import java.util.*;
+import com.google.common.base.Preconditions;
 
 /**
  * This implementation of ISwitchDriverRegistry uses a naive algorithm to
@@ -43,8 +50,8 @@ class NaiveSwitchDriverRegistry implements ISwitchDriverRegistry {
     }
 
     @Override
-    public synchronized void addSwitchDriver(String manufacturerDescPrefix,
-                                             IOFSwitchDriver driver) {
+    public synchronized void addSwitchDriver(@Nonnull String manufacturerDescPrefix,
+                                             @Nonnull IOFSwitchDriver driver) {
         Preconditions.checkNotNull(manufacturerDescPrefix, "manufactererDescProfix");
         Preconditions.checkNotNull(driver, "driver");
 
@@ -61,8 +68,8 @@ class NaiveSwitchDriverRegistry implements ISwitchDriverRegistry {
     // TODO: instead of synchronized we could actually use a r/w lock
     // but it's probably not worth it.
     public synchronized IOFSwitchBackend
-            getOFSwitchInstance(IOFConnectionBackend connection, SwitchDescription description,
-                    OFFactory factory, DatapathId id) {
+            getOFSwitchInstance(@Nonnull IOFConnectionBackend connection, @Nonnull SwitchDescription description,
+                    @Nonnull OFFactory factory, @Nonnull DatapathId id) {
         Preconditions.checkNotNull(connection, "connection");
         Preconditions.checkNotNull(description, "description");
         Preconditions.checkNotNull(factory, "factory");

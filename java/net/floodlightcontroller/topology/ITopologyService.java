@@ -16,16 +16,15 @@
 
 package net.floodlightcontroller.topology;
 
-import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.core.types.NodePortTuple;
-import net.floodlightcontroller.linkdiscovery.Link;
+import java.util.Date;
+import java.util.Map;
+import java.util.Set;
 
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.OFPort;
 
-import java.util.Date;
-import java.util.Map;
-import java.util.Set;
+import net.floodlightcontroller.core.module.IFloodlightService;
+import net.floodlightcontroller.routing.Link;
 
 public interface ITopologyService extends IFloodlightService  {
 
@@ -38,12 +37,6 @@ public interface ITopologyService extends IFloodlightService  {
 	 * @param listener
 	 */
 	public void addListener(ITopologyListener listener);
-	
-	/**
-     * Remove a listener to stop receiving topology events.
-     * @param listener
-     */
-    public void removeListener(ITopologyListener listener);
 
 	/**
 	 * Retrieve the last time the topology was computed.
@@ -62,6 +55,14 @@ public interface ITopologyService extends IFloodlightService  {
 	 * @return
 	 */
 	public boolean isAttachmentPointPort(DatapathId switchid, OFPort port);
+	
+	/**
+	 * Determines if a device can be learned/located on this switch+port.
+	 * @param switchid
+	 * @param port
+	 * @return
+	 */
+	public boolean isAttachmentPointPort(DatapathId switchid, OFPort port, boolean tunnelEnabled);
 
 	/**
 	 * Determines whether or not a switch+port is a part of
@@ -85,7 +86,35 @@ public interface ITopologyService extends IFloodlightService  {
 	 * @param port
 	 * @return
 	 */
-	public boolean isBroadcastPort(DatapathId sw, OFPort port);
+	public boolean isBroadcastDomainPort(DatapathId sw, OFPort port);
+	
+	/**
+	 * Checks if the switch+port is in the broadcast tree.
+	 * @param sw
+	 * @param port
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public boolean isBroadcastDomainPort(DatapathId sw, OFPort port, boolean tunnelEnabled);
+
+	/**
+	 * Determines if the switch+port is blocked. If blocked, it
+	 * should not be allowed to send/receive any traffic.
+	 * @param sw
+	 * @param port
+	 * @return
+	 */
+	public boolean isAllowed(DatapathId sw, OFPort portId);
+	
+	/**
+	 * Determines if the switch+port is blocked. If blocked, it
+	 * should not be allowed to send/receive any traffic.
+	 * @param sw
+	 * @param port
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public boolean isAllowed(DatapathId sw, OFPort portId, boolean tunnelEnabled);
 
 	/**
 	 * Indicates if an attachment point on the new switch port is consistent
@@ -98,6 +127,45 @@ public interface ITopologyService extends IFloodlightService  {
 	 */
 	public boolean isConsistent(DatapathId oldSw, OFPort oldPort, 
 			DatapathId newSw, OFPort newPort);
+	
+	/**
+	 * Indicates if an attachment point on the new switch port is consistent
+	 * with the attachment point on the old switch port or not.
+	 * @param oldSw
+	 * @param oldPort
+	 * @param newSw
+	 * @param newPort
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public boolean isConsistent(DatapathId oldSw, OFPort oldPort,
+			DatapathId newSw, OFPort newPort, boolean tunnelEnabled);
+
+	/**
+	 * Indicates if the two switch ports are connected to the same
+	 * broadcast domain or not.
+	 * @param s1
+	 * @param p1
+	 * @param s2
+	 * @param p2
+	 * @return
+	 */
+	public boolean isInSameBroadcastDomain(DatapathId s1, OFPort p1,
+			DatapathId s2, OFPort p2);
+	
+	/**
+	 * Indicates if the two switch ports are connected to the same
+	 * broadcast domain or not.
+	 * @param s1
+	 * @param p1
+	 * @param s2
+	 * @param p2
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public boolean isInSameBroadcastDomain(DatapathId s1, OFPort p1,
+			DatapathId s2, OFPort p2,
+			boolean tunnelEnabled);
 
 	/** 
 	 * Get broadcast ports on a target switch for a given attachment point
@@ -109,27 +177,60 @@ public interface ITopologyService extends IFloodlightService  {
 	 */
 	public Set<OFPort> getBroadcastPorts(DatapathId targetSw, DatapathId src, OFPort srcPort);
 
+	/** 
+	 * Get broadcast ports on a target switch for a given attachment point
+	 * point port.
+	 * @param targetSw
+	 * @param src
+	 * @param srcPort
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public Set<OFPort> getBroadcastPorts(DatapathId targetSw, DatapathId src, OFPort srcPort, boolean tunnelEnabled);
+
 	/**
-	 * Checks if the given switch+port is allowed to send or receive broadcast packets.
+	 * Checks if the given switch+port is allowed to receive broadcast packets.
 	 * @param sw
 	 * @param portId
 	 * @return
 	 */
-	public boolean isBroadcastAllowed(DatapathId sw, OFPort portId);
-
-	/**
-	 * Gets the set of ports that participate in the broadcast within each archipelago
-	 * @return
-	 */
-	public Set<NodePortTuple> getAllBroadcastPorts();
+	public boolean isIncomingBroadcastAllowed(DatapathId sw, OFPort portId);
 	
 	/**
-     * Gets the set of ports that participate in the broadcast trees for the
-     * archipelago in which the swtich belongs
-     * @param sw
-     * @return
-     */
-    public Set<NodePortTuple> getBroadcastPortsInArchipelago(DatapathId sw);
+	 * Checks if the given switch+port is allowed to receive broadcast packets.
+	 * @param sw
+	 * @param portId
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public boolean isIncomingBroadcastAllowed(DatapathId sw, OFPort portId, boolean tunnelEnabled);
+	
+	/**
+	 * If the src broadcast domain port is not allowed for incoming
+	 * broadcast, this method provides the topologically equivalent
+	 * incoming broadcast-allowed src port.
+	 * @param src
+	 * @param dst
+	 * @return
+	 */
+	public NodePortTuple getAllowedIncomingBroadcastPort(DatapathId src, OFPort srcPort);
+
+	/**
+	 * If the src broadcast domain port is not allowed for incoming
+	 * broadcast, this method provides the topologically equivalent
+	 * incoming broadcast-allowed src port.
+	 * @param src
+	 * @param dst
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public NodePortTuple getAllowedIncomingBroadcastPort(DatapathId src, OFPort srcPort, boolean tunnelEnabled);
+
+	/**
+	 * Gets the set of ports that belong to a broadcast domain.
+	 * @return
+	 */
+	public Set<NodePortTuple> getBroadcastDomainPorts();
 	
 	/**
 	 * Gets the set of ports that belong to tunnels.
@@ -144,15 +245,6 @@ public interface ITopologyService extends IFloodlightService  {
 	 * @return
 	 */
 	public Set<NodePortTuple> getBlockedPorts();
-	
-	/**
-     * Determines if the switch+port is blocked. If blocked, it
-     * should not be allowed to send/receive any traffic.
-     * @param sw
-     * @param portId
-     * @return
-     */
-    public boolean isNotBlocked(DatapathId sw, OFPort portId);
 
 	/**
 	 * Returns the enabled, non quarantined ports of the given switch. Returns
@@ -162,7 +254,7 @@ public interface ITopologyService extends IFloodlightService  {
 	public Set<OFPort> getPorts(DatapathId sw);
 	
 	/*******************************************************
-	 * CLUSTER AND ARCHIPELAGO FUNCTIONS
+	 * ISLAND/DOMAIN/CLUSTER FUNCTIONS
 	 *******************************************************/
 	
 	/**
@@ -171,52 +263,47 @@ public interface ITopologyService extends IFloodlightService  {
 	 * @param switchId
 	 * @return
 	 */
-	public DatapathId getClusterId(DatapathId switchId);
+	public DatapathId getOpenflowDomainId(DatapathId switchId);
 	
 	/**
-     * Return the ID of the archipelago this switch is
-     * a part of. The ID is the lowest cluster DPID within the archipelago.
-     * @param switchId
-     * @return
-     */
-    public DatapathId getArchipelagoId(DatapathId switchId);
-    
-    /**
-     * Return all archipelagos
-     * @return
-     */
-    public Set<DatapathId> getArchipelagoIds();
+	 * Return the ID of the domain/island/cluster this switch is
+	 * a part of. The ID is the lowest switch DPID within the domain.
+	 * @param switchId
+	 * @return
+	 */
+	public DatapathId getOpenflowDomainId(DatapathId switchId, boolean tunnelEnabled);
 	
 	/**
 	 * Determines if two switches are in the same domain/island/cluster.
-	 * @param s1
-	 * @param s2
+	 * @param switch1
+	 * @param switch2
 	 * @return true if the switches are in the same cluster
 	 */
-	public boolean isInSameCluster(DatapathId s1, DatapathId s2);
+	public boolean inSameOpenflowDomain(DatapathId switch1, DatapathId switch2);
 	
 	/**
-     * Determines if two switches are in the same archipelago.
-     * @param s1
-     * @param s2
-     * @return true if the switches are in the same archipelago
-     */
-    public boolean isInSameArchipelago(DatapathId s1, DatapathId s2);
+	 * Determines if two switches are in the same domain/island/cluster.
+	 * @param switch1
+	 * @param switch2
+	 * @param tunnelEnabled
+	 * @return true if the switches are in the same cluster
+	 */
+	public boolean inSameOpenflowDomain(DatapathId switch1, DatapathId switch2, boolean tunnelEnabled);
 
 	/**
 	 * Gets all switches in the same domain/island/cluster as the switch provided.
-	 * @param sw
+	 * @param switchDPID
 	 * @return
 	 */
-	public Set<DatapathId> getSwitchesInCluster(DatapathId sw);
+	public Set<DatapathId> getSwitchesInOpenflowDomain(DatapathId switchDPID);
 	
 	/**
-     * Gets all cluster IDs in the same archipelago as the switch provided.
-     * @param sw
-     * @return
-     */
-    public Set<DatapathId> getClusterIdsInArchipelago(DatapathId sw);
-    
+	 * Gets all switches in the same domain/island/cluster as the switch provided.
+	 * @param switchDPID
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public Set<DatapathId> getSwitchesInOpenflowDomain(DatapathId switchDPID, boolean tunnelEnabled);
 	
 	/*******************************************************
 	 * LINK FUNCTIONS
@@ -237,20 +324,81 @@ public interface ITopologyService extends IFloodlightService  {
 	public Set<OFPort> getPortsWithLinks(DatapathId sw);
 	
 	/**
-	 * Get all links that are:
-	 * --external
-	 * --detected via BDDP
-	 * --connect two clusters
+	 * Gets a list of ports on a given switch that are part of known links.
+	 * @param sw
+	 * @param tunnelEnabled
 	 * @return
 	 */
-	public Set<Link> getExternalInterClusterLinks();
+	public Set<OFPort> getPortsWithLinks(DatapathId sw, boolean tunnelEnabled);
+
+	/*******************************************************
+	 * ROUTING FUNCTIONS
+	 *******************************************************/
 	
 	/**
-     * Get all links that are:
-     * --internal
-     * --detected via LLDP
-     * --connect two clusters
-     * @return
-     */
-    public Set<Link> getInternalInterClusterLinks();
+	 * If trying to route a packet ingress a source switch+port to a destination
+	 * switch+port, retrieve the egress source switch+port leading to the destination.
+	 * @param src
+	 * @param srcPort
+	 * @param dst
+	 * @param dstPort
+	 * @return
+	 */
+	public NodePortTuple getOutgoingSwitchPort(DatapathId src, OFPort srcPort, DatapathId dst, OFPort dstPort);
+
+	/**
+	 * If trying to route a packet ingress a source switch+port to a destination
+	 * switch+port, retrieve the egress source switch+port leading to the destination.
+	 * @param src
+	 * @param srcPort
+	 * @param dst
+	 * @param dstPort
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public NodePortTuple getOutgoingSwitchPort(DatapathId src, OFPort srcPort,
+			DatapathId dst, OFPort dstPort, boolean tunnelEnabled);
+
+	/**
+	 * If trying to route a packet ingress a source switch+port to a destination
+	 * switch+port, retrieve the ingress destination switch+port leading to the destination.
+	 * @param src
+	 * @param srcPort
+	 * @param dst
+	 * @param dstPort
+	 * @return
+	 */
+	public NodePortTuple getIncomingSwitchPort(DatapathId src, OFPort srcPort, DatapathId dst, OFPort dstPort);
+	
+	/**
+	 * If trying to route a packet ingress a source switch+port to a destination
+	 * switch+port, retrieve the ingress destination switch+port leading to the destination.
+	 * @param src
+	 * @param srcPort
+	 * @param dst
+	 * @param dstPort
+	 * @param tunnelEnabled
+	 * @return
+	 */
+	public NodePortTuple getIncomingSwitchPort(DatapathId src, OFPort srcPort,
+			DatapathId dst, OFPort dstPort, boolean tunnelEnabled);
+
+	/**
+	 * If the dst is not allowed by the higher-level topology,
+	 * this method provides the topologically equivalent broadcast port.
+	 * @param src
+	 * @param dst
+	 * @return the allowed broadcast port
+	 */
+	public NodePortTuple getAllowedOutgoingBroadcastPort(DatapathId src, OFPort srcPort, DatapathId dst, OFPort dstPort);
+	
+	/**
+	 * If the dst is not allowed by the higher-level topology,
+	 * this method provides the topologically equivalent broadcast port.
+	 * @param src
+	 * @param dst
+	 * @param tunnelEnabled
+	 * @return the allowed broadcast port
+	 */
+	public NodePortTuple getAllowedOutgoingBroadcastPort(DatapathId src, OFPort srcPort, DatapathId dst, OFPort dstPort, boolean tunnelEnabled);
 }

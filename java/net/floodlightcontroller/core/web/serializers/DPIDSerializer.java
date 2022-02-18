@@ -35,4 +35,5 @@ public class DPIDSerializer extends JsonSerializer<DatapathId> {
                                   throws IOException, JsonProcessingException {
         jGen.writeString(dpid.toString());
     }
+
 }

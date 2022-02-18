@@ -203,7 +203,7 @@ public abstract class AbstractDeviceResource extends ServerResource {
                     for (SwitchPort v : value.getAttachmentPoints(true)) {
                         String str;
                         if (v != null && 
-                            (str = v.getNodeId().toString()) != null &&
+                            (str = v.getSwitchDPID().toString()) != null &&
                             str.startsWith(dpidStartsWith)) {
                             match = true;
                             break;
@@ -216,7 +216,7 @@ public abstract class AbstractDeviceResource extends ServerResource {
                     for (SwitchPort v : value.getAttachmentPoints(true)) {
                         String str;
                         if (v != null && 
-                            (str = v.getPortId().toString()) != null &&
+                            (str = v.getPort().toString()) != null &&
                             str.startsWith(portStartsWith)) {
                             match = true;
                             break;

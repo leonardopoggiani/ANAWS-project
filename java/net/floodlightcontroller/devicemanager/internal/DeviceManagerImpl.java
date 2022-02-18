@@ -17,7 +17,22 @@
 
 package net.floodlightcontroller.devicemanager.internal;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -38,11 +53,16 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.core.types.NodePortTuple;
 import net.floodlightcontroller.core.util.ListenerDispatcher;
 import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.debugcounter.IDebugCounter;
 import net.floodlightcontroller.debugcounter.IDebugCounterService;
+import net.floodlightcontroller.debugevent.DebugEventService.EventCategoryBuilder;
+import net.floodlightcontroller.debugevent.IDebugEventService;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventColumn;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventFieldType;
+import net.floodlightcontroller.debugevent.IDebugEventService.EventType;
+import net.floodlightcontroller.debugevent.IEventCategory;
 import net.floodlightcontroller.devicemanager.IDevice;
 import net.floodlightcontroller.devicemanager.IDeviceService;
 import net.floodlightcontroller.devicemanager.IEntityClass;
@@ -62,9 +82,6 @@ import net.floodlightcontroller.packet.IPv6;
 import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.packet.DHCP.DHCPOptionCode;
 import net.floodlightcontroller.restserver.IRestApiService;
-import net.floodlightcontroller.routing.IGatewayService;
-import net.floodlightcontroller.routing.IRoutingService;
-import net.floodlightcontroller.routing.VirtualGatewayInstance;
 import net.floodlightcontroller.storage.IStorageSourceService;
 import net.floodlightcontroller.threadpool.IThreadPoolService;
 import net.floodlightcontroller.topology.ITopologyListener;
@@ -108,8 +125,6 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 	protected IRestApiService restApi;
 	protected IThreadPoolService threadPool;
 	protected IDebugCounterService debugCounters;
-	protected IGatewayService gatewayService;
-	protected IRoutingService routingService;
 	private ISyncService syncService;
 	private IStoreClient<String, DeviceSyncRepresentation> storeClient;
 	private DeviceSyncManager deviceSyncManager;
@@ -147,6 +162,12 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 	public IDebugCounter cntConsolidateStoreRuns;
 	public IDebugCounter cntConsolidateStoreDevicesRemoved;
 	public IDebugCounter cntTransitionToMaster;
+
+	/**
+	 * Debug Events
+	 */
+	private IDebugEventService debugEventService;
+	private IEventCategory<DeviceEvent> debugEventCategory;
 
 	private boolean isMaster = false;
 
@@ -332,13 +353,13 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 
 			DatapathId oldSw = oldAP.getSw();
 			OFPort oldPort = oldAP.getPort();
-			DatapathId oldDomain = topology.getClusterId(oldSw);
-			boolean oldBD = topology.isBroadcastPort(oldSw, oldPort);
+			DatapathId oldDomain = topology.getOpenflowDomainId(oldSw);
+			boolean oldBD = topology.isBroadcastDomainPort(oldSw, oldPort);
 
 			DatapathId newSw = newAP.getSw();
 			OFPort newPort = newAP.getPort();
-			DatapathId newDomain = topology.getClusterId(newSw);
-			boolean newBD = topology.isBroadcastPort(newSw, newPort);
+			DatapathId newDomain = topology.getOpenflowDomainId(newSw);
+			boolean newBD = topology.isBroadcastDomainPort(newSw, newPort);
 
 			if (oldDomain.getLong() < newDomain.getLong()) return -1;
 			else if (oldDomain.getLong() > newDomain.getLong()) return 1;
@@ -728,6 +749,76 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 		}
 	}
 
+	// ***************
+	// IDeviceListener
+	// ***************
+	private class DeviceDebugEventLogger implements IDeviceListener {
+		@Override
+		public String getName() {
+			return "deviceDebugEventLogger";
+		}
+
+		@Override
+		public boolean isCallbackOrderingPrereq(String type, String name) {
+			return false;
+		}
+
+		@Override
+		public boolean isCallbackOrderingPostreq(String type, String name) {
+			return false;
+		}
+
+		@Override
+		public void deviceAdded(IDevice device) {
+			generateDeviceEvent(device, "host-added");
+		}
+
+		@Override
+		public void deviceRemoved(IDevice device) {
+			generateDeviceEvent(device, "host-removed");
+		}
+
+		@Override
+		public void deviceMoved(IDevice device) {
+			generateDeviceEvent(device, "host-moved");
+		}
+
+		@Override
+		public void deviceIPV4AddrChanged(IDevice device) {
+			generateDeviceEvent(device, "host-ipv4-addr-changed");
+		}
+		
+		@Override
+		public void deviceIPV6AddrChanged(IDevice device) {
+			generateDeviceEvent(device, "host-ipv6-addr-changed");
+		}
+
+		@Override
+		public void deviceVlanChanged(IDevice device) {
+			generateDeviceEvent(device, "host-vlan-changed");
+		}
+
+		private void generateDeviceEvent(IDevice device, String reason) {
+			List<IPv4Address> ipv4Addresses =
+					new ArrayList<IPv4Address>(Arrays.asList(device.getIPv4Addresses()));
+			List<IPv6Address> ipv6Addresses =
+					new ArrayList<IPv6Address>(Arrays.asList(device.getIPv6Addresses()));
+			List<SwitchPort> oldAps =
+					new ArrayList<SwitchPort>(Arrays.asList(device.getOldAP()));
+			List<SwitchPort> currentAps =
+					new ArrayList<SwitchPort>(Arrays.asList(device.getAttachmentPoints()));
+			List<VlanVid> vlanIds =
+					new ArrayList<VlanVid>(Arrays.asList(device.getVlanId()));
+
+			debugEventCategory.newEventNoFlush(new DeviceEvent(device.getMACAddress(),
+					ipv4Addresses,
+					ipv6Addresses,
+					oldAps,
+					currentAps,
+					vlanIds, reason));
+		}
+	}
+
 	// *************
 	// IInfoProvider
 	// *************
@@ -834,12 +925,27 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 		this.threadPool = fmc.getServiceImpl(IThreadPoolService.class);
 		this.entityClassifier = fmc.getServiceImpl(IEntityClassifierService.class);
 		this.debugCounters = fmc.getServiceImpl(IDebugCounterService.class);
+		this.debugEventService = fmc.getServiceImpl(IDebugEventService.class);
 		this.syncService = fmc.getServiceImpl(ISyncService.class);
 		this.deviceSyncManager = new DeviceSyncManager();
 		this.haListenerDelegate = new HAListenerDelegate();
-		this.gatewayService = fmc.getServiceImpl(IGatewayService.class);
-		this.routingService = fmc.getServiceImpl(IRoutingService.class);
 		registerDeviceManagerDebugCounters();
+		registerDeviceManagerDebugEvents();
+		this.addListener(new DeviceDebugEventLogger());
+	}
+
+	private void registerDeviceManagerDebugEvents() throws FloodlightModuleException {
+		if (debugEventService == null) {
+			logger.error("debugEventService should not be null");
+		}
+		EventCategoryBuilder<DeviceEvent> ecb = debugEventService.buildEvent(DeviceEvent.class);
+		debugEventCategory = ecb.setModuleName(PACKAGE)
+				.setEventName("hostevent")
+				.setEventDescription("Host added, removed, updated, or moved")
+				.setEventType(EventType.ALWAYS_LOG)
+				.setBufferCapacity(500)
+				.setAckable(false)
+				.register();
 	}
 
 	@Override
@@ -1068,32 +1174,12 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 	protected Command processPacketInMessage(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
 		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx,IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
-
-		NodePortTuple npt = new NodePortTuple(sw.getId(), inPort);
-		MacAddress gatewayMac = null;
-		if (routingService.isL3RoutingEnabled()) {
-			Optional<VirtualGatewayInstance> instance = gatewayService.getGatewayInstance(sw.getId());
-			if (!instance.isPresent()) {
-				instance = gatewayService.getGatewayInstance(npt);
-			}
-
-			if (!instance.isPresent()) {
-				logger.info("Could not locate virtual gateway instance for DPID {}, port {}", sw.getId(), inPort);
-			}
-			else {
-				gatewayMac = instance.get().getGatewayMac();
-			}
-		}
-
 		// Extract source entity information
 		Entity srcEntity = getSourceEntityFromPacket(eth, sw.getId(), inPort);
 		if (srcEntity == null) {
 			cntInvalidSource.increment();
 			return Command.STOP;
 		}
-
-		// Skip processing entity for L3 virtual router as we don't need to
-		if (gatewayMac != null && srcEntity.getMacAddress().equals(gatewayMac)) return Command.CONTINUE;
 
 		// Learn from ARP packet for special VRRP settings.
 		// In VRRP settings, the source MAC address and sender MAC
@@ -1109,6 +1195,7 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 			cntNoSource.increment();
 			return Command.STOP;
 		}
+
 		// Store the source device in the context
 		fcStore.put(cntx, CONTEXT_SRC_DEVICE, srcDevice);
 
@@ -1939,6 +2026,9 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 				 break;
 			 }
 		 }
+		 // Since cleanupEntities() is not called in the packet-in pipeline,
+		 // debugEvents need to be flushed explicitly
+		 debugEventService.flushEvents();
 	 }
 
 	 protected void removeEntity(Entity removed,
@@ -2091,6 +2181,9 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 				 sendDeviceMovedNotification(d);
 			 }
 		 }
+		 // Since topologyChanged() does not occur in the packet-in pipeline,
+		 // debugEvents need to be flushed explicitly
+		 debugEventService.flushEvents();
 	 }
 
 	 /**
@@ -2169,7 +2262,9 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 		 for (Entity entity: device.entities ) {
 			 this.learnDeviceByEntity(entity);
 		 }
-
+		 // Since reclassifyDevices() is not called in the packet-in pipeline,
+		 // debugEvents need to be flushed explicitly
+		 debugEventService.flushEvents();
 		 return true;
 	 }
 
@@ -2444,5 +2539,42 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 	  */
 	 IHAListener getHAListener() {
 		 return this.haListenerDelegate;
+	 }
+
+	 /**
+	  * Device Event Class used to log Device related events
+	  */
+	 private class DeviceEvent {
+		 @EventColumn(name = "MAC", description = EventFieldType.MAC)
+		 private final MacAddress macAddress;
+		 @EventColumn(name = "IPv4s", description = EventFieldType.IPv4)
+		 private final List<IPv4Address> ipv4Addresses;
+		 @EventColumn(name = "IPv6s", description = EventFieldType.IPv6)
+		 private final List<IPv6Address> ipv6Addresses;
+		 @EventColumn(name = "Old Attachment Points",
+				 description = EventFieldType.COLLECTION_ATTACHMENT_POINT)
+		 private final List<SwitchPort> oldAttachmentPoints;
+		 @EventColumn(name = "Current Attachment Points",
+				 description = EventFieldType.COLLECTION_ATTACHMENT_POINT)
+		 private final List<SwitchPort> currentAttachmentPoints;
+		 @EventColumn(name = "VLAN IDs", description = EventFieldType.COLLECTION_OBJECT)
+		 private final List<VlanVid> vlanIds;
+		 @EventColumn(name = "Reason", description = EventFieldType.STRING)
+		 private final String reason;
+
+		 public DeviceEvent(MacAddress macAddress, List<IPv4Address> ipv4Addresses,
+				 List<IPv6Address> ipv6Addresses,
+				 List<SwitchPort> oldAttachmentPoints,
+				 List<SwitchPort> currentAttachmentPoints,
+				 List<VlanVid> vlanIds, String reason) {
+			 super();
+			 this.macAddress = macAddress;
+			 this.ipv4Addresses = ipv4Addresses;
+			 this.ipv6Addresses = ipv6Addresses;
+			 this.oldAttachmentPoints = oldAttachmentPoints;
+			 this.currentAttachmentPoints = currentAttachmentPoints;
+			 this.vlanIds = vlanIds;
+			 this.reason = reason;
+		 }
 	 }
 }
