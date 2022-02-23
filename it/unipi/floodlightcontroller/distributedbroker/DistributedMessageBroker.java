@@ -24,6 +24,7 @@ import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv6Address;
+import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
@@ -47,6 +48,7 @@ import net.floodlightcontroller.devicemanager.IDeviceService;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.ICMP;
 import net.floodlightcontroller.packet.IPacket;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.restserver.IRestApiService;
@@ -182,13 +184,13 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         // The packet is a request to the service from a user.
         if (isResourceAddress(destinationMAC, destinationIP)) {
             logger.info("The packet is a message to a resource.");
-            handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket, destinationIP);
+            handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
 
         // The packet is a response from the service to a user.
         if (isServerCompleteAddress(sourceMAC, sourceIP)) {
-            logger.info("The packet is a response from the service transiting through an access switch.");
+            logger.info("The packet is a response from the server transiting through an access switch.");
             handleResponseFromServer(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
@@ -238,24 +240,46 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         */
     }
 	
-	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket, IPv4Address resource_address) {
+	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
+		
+		IPv4Address resource_address = ipPacket.getDestinationAddress();
+		
 		// the request to the resource must retrieve the list of subscribers of the resource
-		Map<String, String> list = null;
+		Map<String, String> subscriber_list = null;
 		
 		for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
-        	if (ipPacket.getDestinationAddress().compareTo(resource.getKey()) == 0) {
-                list = getSubscribers(resource.getKey());
+        	if (resource_address.compareTo(resource.getKey()) == 0) {
+        		subscriber_list = getSubscribers(resource.getKey());
                 break;
         	}
         }
 		
-		if(list == null) {
+		if(subscriber_list == null) {
 			// no subscribers for this resource
+			logger.info("No subscribers found for this resource: " + resource_address.toString());
 			return;
 		}
 		
+		// Create a flow table modification message to add a rule
+		/*
+		OFFlowAdd.Builder fmb = sw.getOFFactory().buildFlowAdd();
+		
+        fmb.setIdleTimeout(IDLE_TIMEOUT);
+        fmb.setHardTimeout(HARD_TIMEOUT);
+        fmb.setBufferId(OFBufferId.NO_BUFFER);
+        fmb.setOutPort(OFPort.ANY);
+        fmb.setCookie(U64.of(0));
+        fmb.setPriority(FlowModUtils.PRIORITY_MAX);
+
+        // Create the match structure  
+        Match.Builder mb = sw.getOFFactory().buildMatch();
+        mb.setExact(MatchField.ETH_TYPE, EthType.IPv4)
+        .setExact(MatchField.IPV4_DST, resource_address)
+        .setExact(MatchField.ETH_DST, LOAD_BALANCER_MAC);
+        */
+        
 		// i want to send a packet to every subscriber on the list
-		for(Map.Entry<String, String> subscriber : list.entrySet()) {
+		for(Map.Entry<String, String> subscriber : subscriber_list.entrySet()) {
 			 
 			// se e' il mittente non devo fare nulla
 			if(subscriber.getValue().compareTo(ipPacket.getSourceAddress().toString()) == 0) {
@@ -263,7 +287,57 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 				// continue;
 			}
 			
-			OFActions actions = sw.getOFFactory().actions();
+			// Check that the IP is actually an ICMP request
+			if (! (ipPacket.getPayload() instanceof ICMP))
+				return;
+
+			// Cast to ICMP packet
+			ICMP icmpRequest = (ICMP) ipPacket.getPayload();
+				
+			// Generate ICMP reply
+			IPacket icmpReply = new Ethernet()
+				.setSourceMACAddress(SERVER_MAC)
+				.setDestinationMACAddress(ethernetFrame.getSourceMACAddress())
+				.setEtherType(EthType.IPv4)
+				.setPriorityCode(ethernetFrame.getPriorityCode())
+				.setPayload(
+					new IPv4()
+					.setProtocol(IpProtocol.ICMP)
+					.setDestinationAddress(ipPacket.getSourceAddress())
+					.setSourceAddress(resource_address)
+					.setTtl((byte)64)
+					.setProtocol(IpProtocol.IPv4)
+					// Set the same payload included in the request
+					.setPayload(
+							new ICMP()
+							.setIcmpType(ICMP.ECHO_REPLY)
+							.setIcmpCode(icmpRequest.getIcmpCode())
+	                        .setPayload(icmpRequest.getPayload())
+					)
+				);
+			
+			// Create the Packet-Out and set basic data for it (buffer id and in port)
+			OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
+			pob.setBufferId(OFBufferId.NO_BUFFER);
+			pob.setInPort(OFPort.ANY);
+			
+			// Create action -> send the packet back from the source port
+			OFActionOutput.Builder actionBuilder = sw.getOFFactory().actions().buildOutput();
+			// The method to retrieve the InPort depends on the protocol version 
+			OFPort inPort = packetIn.getMatch().get(MatchField.IN_PORT);
+			actionBuilder.setPort(inPort); 
+			
+			// Assign the action
+			pob.setActions(Collections.singletonList((OFAction) actionBuilder.build()));
+			
+			// Set the ICMP reply as packet data 
+			byte[] packetData = icmpReply.serialize();
+			pob.setData(packetData);
+			
+			sw.write(pob.build());
+
+			/*
+			 OFActions actions = sw.getOFFactory().actions();
 	        ArrayList<OFAction> actionList = new ArrayList<OFAction>();
 	        OFOxms oxms = sw.getOFFactory().oxms();
 	        // Set dstIp as the destination address for the incoming packet
@@ -294,8 +368,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	        	SwitchPort[] ports = device.getAttachmentPoints();
 	        	
 	        	for(int i = 0; i < ports.length; i++) {
-	        		logger.info("Port: " + ports[i].getPort());
-	        		OFPort outputPort = ports[i].getPort();
+	        		// logger.info("Port: " + ports[i].getPort());
+	        		// OFPort outputPort = ports[i].getPort();
+	        		OFPort outputPort = OFPort.of(i);
 	        		
 	        		if (outputPort == null) {
 	                    logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
@@ -305,7 +380,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	                instructSwitchWhenRequestToServer(sw, packetIn, ethernetFrame, ipPacket, MacAddress.of(subscriber.getKey()), IPv4Address.of(subscriber.getValue()), outputPort, resource_address);
 
 	        	}
-	      	}                  
+	      	}        
+	      	*/          
 		}
 		
 		logger.info("Packet-out and flow mod correctly sent to the switch.");
