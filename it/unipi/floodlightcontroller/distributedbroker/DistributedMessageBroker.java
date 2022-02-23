@@ -315,11 +315,29 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	                        .setPayload(icmpRequest.getPayload())
 					)
 				);
-			
-			// Create the Packet-Out and set basic data for it (buffer id and in port)
+			OFPort outputPort = OFPort.ANY;
+			Iterator<? extends IDevice> dstDev = deviceManagerService.queryDevices(MacAddress.of(subscriber.getKey()), VlanVid.ZERO, IPv4Address.NONE, IPv6Address.NONE, DatapathId.NONE, OFPort.ZERO);
+			while(dstDev.hasNext()) {
+				 
+        		IDevice device =  dstDev.next();
+        		logger.info("Dev: " + device.toString());
+        		SwitchPort[] ports = device.getAttachmentPoints();
+	        	
+	        	for(int i = 0; i < ports.length; i++) {
+	        		logger.info("Port: " + ports[i].getPortId());
+	        		outputPort = ports[i].getPortId();
+	        		//OFPort outputPort = OFPort.of(i);
+	        		
+	        		if (outputPort == null) {
+	                    logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
+	                    return;
+	                }
+	        	}
+			}
+			/*// Create the Packet-Out and set basic data for it (buffer id and in port)
 			OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
 			pob.setBufferId(OFBufferId.NO_BUFFER);
-			pob.setInPort(OFPort.ANY);
+			pob.setInPort(OFPort.CONTROLLER);
 			
 			// Create action -> send the packet back from the source port
 			OFActionOutput.Builder actionBuilder = sw.getOFFactory().actions().buildOutput();
@@ -329,12 +347,21 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			
 			// Assign the action
 			pob.setActions(Collections.singletonList((OFAction) actionBuilder.build()));
-			
+			*/
 			// Set the ICMP reply as packet data 
 			byte[] packetData = icmpReply.serialize();
-			pob.setData(packetData);
 			
-			sw.write(pob.build());
+
+			OFPacketOut po = sw.getOFFactory().buildPacketOut() /* mySwitch is some IOFSwitch object */
+				    .setData(packetData)
+				    .setActions(Collections.singletonList((OFAction) sw.getOFFactory().actions().output(outputPort, 0xffFFffFF)))
+				    .setInPort(OFPort.CONTROLLER)
+				    .build();
+				  
+				sw.write(po);
+			//pob.setData(packetData);
+			
+			//sw.write(pob.build());
 
 			/*
 			 OFActions actions = sw.getOFFactory().actions();
@@ -381,7 +408,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
 	        	}
 	      	}        
-	      	*/          
+	      	*/      
+			break;
 		}
 		
 		logger.info("Packet-out and flow mod correctly sent to the switch.");
