@@ -55,6 +55,7 @@ import net.floodlightcontroller.packet.ICMP;
 import net.floodlightcontroller.packet.IPacket;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.TCP;
+import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Path;
@@ -262,8 +263,15 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         Path shortestPath = null;
 
         for (SwitchPort endSwitch : endSwitches) {
-            Path candidateShortestPath = routingService.getPath(startSwitch, OFPort.of(1),
-                                                                  endSwitch.getNodeId(), endSwitch.getPortId());
+            logger.info("startSwitch: {}", startSwitch.toString());
+            logger.info("endSwitch: {} \n endPort: {} \n", endSwitch.getNodeId().toString(), endSwitch.getPortId().toString());
+            
+            Path candidateShortestPath = routingService.getPath(
+            		startSwitch, 
+            		OFPort.of(1),
+                    endSwitch.getNodeId(), 
+                    endSwitch.getPortId()
+            	);
                                                                 
             if (candidateShortestPath == null)
                 continue;
@@ -273,7 +281,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
                 continue;
             }
 
-            if (candidateShortestPath.compareTo(shortestPath) < 0)
+            if (candidateShortestPath.getHopCount() < shortestPath.getHopCount())
                 shortestPath = candidateShortestPath;
         }
 
@@ -338,59 +346,88 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			
 			if(dstDev.hasNext()) {
 				 
-        		IDevice device =  dstDev.next();
-        		
-        		logger.info("Dev: " + device.toString());
-        		
-        		 
-        		 SwitchPort[] switches = device.getAttachmentPoints();
-
-        		
-        	    // Compute the shortest path from the switch that sent the packet-in to the candidate server.
-                Path shortestPath = getShortestPath(sw.getId(), switches);
-                if (shortestPath == null)
-                    continue;
-                
-                // The output port of the current switch is specified by the second element of the path.
-                OFPort outputPort = shortestPath.getPath().get(1).getPortId();
-                logger.info(outputPort.toString());
-                
-	        	/*for(int i = 0; i < ports.length; i++) {
-	        		
-	        		logger.info("Port: " + ports[i].getPortId());
-	        		
-	        		outputPort = ports[i].getPortId();
-	        		
-	        		if (outputPort == null) {
-	                    logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
-	                    return;
-	                }*/
-	        			        		
-	    			// Generate ARP reply
-	    			IPacket tcpPacket = new Ethernet()
-	    				.setSourceMACAddress(SERVER_MAC)
-	    				.setDestinationMACAddress(ethernetFrame.getSourceMACAddress())
-	    				.setEtherType(EthType.IPv4)
-	    				.setPriorityCode(ethernetFrame.getPriorityCode())
-	    				.setPayload(
-	    					new TCP()
-	    						.setDestinationPort(TransportPort.of(outputPort.getPortNumber()))
-	    						.setSourcePort(TransportPort.of(packetIn.getMatch().get(MatchField.IN_PORT).getPortNumber())));
+				IDevice device =  dstDev.next();
+				
+				logger.info("Dev: " + device.toString());
+				 
+				SwitchPort[] switches = device.getAttachmentPoints();
+				
+				// Compute the shortest path from the switch that sent the packet-in to the candidate server.
+				Path shortestPath = getShortestPath(sw.getId(), switches);
+				if (shortestPath == null) {
+					logger.info("No path found!");
+				    continue;
+				}
+				
+				logger.info("Path: {}", shortestPath.getPath().toString());
+				
+				// The output port of the current switch is specified by the second element of the path.
+				OFPort outputPort = shortestPath.getPath().get(1).getPortId();
+				logger.info(outputPort.toString());
+				
+				/*for(int i = 0; i < ports.length; i++) {
+					
+					logger.info("Port: " + ports[i].getPortId());
+					
+					outputPort = ports[i].getPortId();
+					
+					if (outputPort == null) {
+				        logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
+				        return;
+				    }*/
+				
+				IPv4 ipv4 = (IPv4) ethernetFrame.getPayload();
+				        		
+				// Generate ARP reply
+				IPacket tcpPacket = new Ethernet()
+						.setSourceMACAddress(SERVER_MAC)
+						.setDestinationMACAddress(ethernetFrame.getSourceMACAddress())
+						.setEtherType(EthType.IPv4)
+						.setPriorityCode(ethernetFrame.getPriorityCode())
+						.setPayload(
+							new UDP()
+							.setDestinationPort(TransportPort.of(outputPort.getPortNumber()))
+							.setSourcePort(TransportPort.of(packetIn.getMatch().get(MatchField.IN_PORT).getPortNumber()))
+							.setPayload(ipv4)
+						);
+								
 	    			
-	    			// Set the ICMP reply as packet data 
-	    			byte[] packetData = tcpPacket.serialize();
-
-	    			OFPacketOut po = sw.getOFFactory().buildPacketOut()
-	    				    .setData(packetData)
-	    				    .setActions(Collections.singletonList((OFAction) sw.getOFFactory().actions().output(outputPort, 0xffFFffFF)))
-	    				    .setInPort(OFPort.ANY)
-	    				    .build();
-	    				  
-	    			sw.write(po);
 	    			
-                    logger.info("Sent packet-out on the outport specified.");
-
-	        	//}
+				OFOxms oxmsBuilder = sw.getOFFactory().oxms();
+				OFActions actionBuilder = sw.getOFFactory().actions();
+				ArrayList<OFAction> actionList = new ArrayList<>();
+				
+				OFActionSetField setMACDestination = actionBuilder.buildSetField()
+				        .setField(oxmsBuilder.buildEthDst().setValue(MacAddress.of(subscriber.getKey())).build())
+				        .build();
+				
+				OFActionSetField setIPDestination = actionBuilder.buildSetField()
+				        .setField(oxmsBuilder.buildIpv4Dst().setValue(IPv4Address.of(subscriber.getValue())).build())
+				        .build();
+				
+				OFActionOutput output = actionBuilder.buildOutput()
+				        .setMaxLen(0xFFffFFff)
+				        .setPort(outputPort)
+				        .build();
+				
+				actionList.add(setMACDestination);
+				actionList.add(setIPDestination);
+				actionList.add(output);
+				    
+				// Set the ICMP reply as packet data 
+				byte[] packetData = tcpPacket.serialize();
+				
+				OFPacketOut po = sw.getOFFactory().buildPacketOut()
+					    .setData(packetData)
+					    .setActions(actionList)
+					    .setInPort(OFPort.ANY)
+					    .build();
+					 
+				sw.write(po);
+				
+				logger.info("Sent packet-out on the outport specified.");
+					
+					//}
 			}		
 			
 			/*// Create the Packet-Out and set basic data for it (buffer id and in port)
