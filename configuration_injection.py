@@ -2,7 +2,7 @@ import requests
 import json
 from time import sleep
 
-controller_ip = "127.0.0.1:8080"
+controller_ip = "192.168.122.1:8080"
 base_url = "http://" + controller_ip + "/db/"
 header = {"Content-type": "application/json", "Accept": "text/plain"}
 
@@ -12,7 +12,7 @@ url_subscribers = base_url + "/subscribers/{resource}/json"
 # Users
 print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
 print(requests.post(url_resources, json.dumps({}), headers=header).json())
-print(requests.post(url_resources, json.dumps({}), headers=header).json())
+print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
 
 # Servers
 print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.1", "MAC": "00:00:00:00:00:01"}), headers=header).json())
