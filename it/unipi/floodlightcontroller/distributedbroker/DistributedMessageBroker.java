@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
 import org.projectfloodlight.openflow.protocol.OFMessage;
@@ -54,6 +56,8 @@ import net.floodlightcontroller.packet.IPacket;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.TCP;
 import net.floodlightcontroller.restserver.IRestApiService;
+import net.floodlightcontroller.routing.IRoutingService;
+import net.floodlightcontroller.routing.Path;
 import net.floodlightcontroller.util.FlowModUtils;
 
 public class DistributedMessageBroker implements IOFMessageListener, IFloodlightModule, IDistributedBrokerREST {
@@ -65,6 +69,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     private IFloodlightProviderService floodlightProvider;
     private IRestApiService restApiService;
 	private IDeviceService deviceManagerService; //Reference to the device manager
+	private IRoutingService routingService;
 
     // Default virtual IP and MAC addresses of the server
 	private final static MacAddress SERVER_MAC =  MacAddress.of("00:00:00:00:00:FE");
@@ -120,6 +125,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         dependencies.add(IFloodlightProviderService.class);
         dependencies.add(IRestApiService.class);
         dependencies.add(IDeviceService.class);
+        dependencies.add(IRoutingService.class);
         return dependencies;
 	}
 
@@ -130,6 +136,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
         restApiService = context.getServiceImpl(IRestApiService.class);
         deviceManagerService = context.getServiceImpl(IDeviceService.class);
+        routingService = context.getServiceImpl(IRoutingService.class);
 	}
 
 	 @Override
@@ -242,6 +249,37 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         */
     }
 	
+	/**
+     * Returns the shortest path in terms of hops between a starting switch and
+     * a set of ending switches.
+     * @param startSwitch  the DPID of the switch representing the starting point of the path.
+     * @param endSwitches  the list of switches and ports each one representing
+     *                     an end point of the path.
+     * @return             the shortest path, if at least one path exists between the endpoints,
+     *                     null otherwise.
+     */
+    private Path getShortestPath(DatapathId startSwitch, SwitchPort[] endSwitches) {
+        Path shortestPath = null;
+
+        for (SwitchPort endSwitch : endSwitches) {
+            Path candidateShortestPath = routingService.getPath(startSwitch, OFPort.of(1),
+                                                                  endSwitch.getNodeId(), endSwitch.getPortId());
+                                                                
+            if (candidateShortestPath == null)
+                continue;
+
+            if (shortestPath == null) {
+                shortestPath = candidateShortestPath;
+                continue;
+            }
+
+            if (candidateShortestPath.compareTo(shortestPath) < 0)
+                shortestPath = candidateShortestPath;
+        }
+
+        return shortestPath;
+    }
+	
 	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
 		
 		IPv4Address resource_address = ipPacket.getDestinationAddress();
@@ -286,7 +324,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		// i want to send a packet to every subscriber on the list
 		for(Map.Entry<String, String> subscriber : subscriber_list.entrySet()) {
 			
-			OFPort outputPort = OFPort.ANY;
+			//OFPort outputPort = OFPort.ANY;
 			logger.info("Subscriber: {}", subscriber.getKey());
 			
 			Iterator<? extends IDevice> dstDev = deviceManagerService.queryDevices(
@@ -304,9 +342,20 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         		
         		logger.info("Dev: " + device.toString());
         		
-        		SwitchPort[] ports = device.getAttachmentPoints();
-	        	
-	        	for(int i = 0; i < ports.length; i++) {
+        		 
+        		 SwitchPort[] switches = device.getAttachmentPoints();
+
+        		
+        	    // Compute the shortest path from the switch that sent the packet-in to the candidate server.
+                Path shortestPath = getShortestPath(sw.getId(), switches);
+                if (shortestPath == null)
+                    continue;
+                
+                // The output port of the current switch is specified by the second element of the path.
+                OFPort outputPort = shortestPath.getPath().get(1).getPortId();
+                logger.info(outputPort.toString());
+                
+	        	/*for(int i = 0; i < ports.length; i++) {
 	        		
 	        		logger.info("Port: " + ports[i].getPortId());
 	        		
@@ -315,7 +364,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	        		if (outputPort == null) {
 	                    logger.info("The user is not connected anymore to this access switch. Dropping the packet.");
 	                    return;
-	                }
+	                }*/
 	        			        		
 	    			// Generate ARP reply
 	    			IPacket tcpPacket = new Ethernet()
@@ -326,7 +375,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	    				.setPayload(
 	    					new TCP()
 	    						.setDestinationPort(TransportPort.of(outputPort.getPortNumber()))
-	    						.setSourcePort(TransportPort.of(packetIn.getInPort().getPortNumber())));
+	    						.setSourcePort(TransportPort.of(packetIn.getMatch().get(MatchField.IN_PORT).getPortNumber())));
 	    			
 	    			// Set the ICMP reply as packet data 
 	    			byte[] packetData = tcpPacket.serialize();
@@ -341,7 +390,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	    			
                     logger.info("Sent packet-out on the outport specified.");
 
-	        	}
+	        	//}
 			}		
 			
 			/*// Create the Packet-Out and set basic data for it (buffer id and in port)
@@ -456,6 +505,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		return actionList;
 	}
+	
+	
+
 	
 	private void instructSwitchWhenRequestToServer(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame,
         IPv4 ipPacket, MacAddress serverMAC, IPv4Address serverIP,
