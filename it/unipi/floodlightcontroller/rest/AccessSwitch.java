@@ -18,23 +18,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Class managing the resource "/access-switches/json".
  */
+/*
 public class AccessSwitch extends ServerResource {
+	
 
-	/**
-	 * Retrieves the list of access switches.
-	 * @return  the list of access switches.
-	 */
 	@Get("json")
     public Set<String> show() {
     	IDistributedBrokerREST db = (IDistributedBrokerREST) getContext().getAttributes().get(IDistributedBrokerREST.class.getCanonicalName());
     	return db.getAccessSwitches();
     }
 
-	/**
-	 * Adds a switch to the list of access switches.
-	 * @param fmJson  the JSON message.
-	 * @return        a message carrying information about the success of the operation.
-	 */
 	@Post("json")
 	public Map<String, String> store(String fmJson) {
 		Map<String, String> result = new HashMap<>();
@@ -70,11 +63,6 @@ public class AccessSwitch extends ServerResource {
 		return result;
 	}
 
-	/**
-	 * Removes a switch from the list of access switches.
-	 * @param fmJson  the JSON message.
-	 * @return        a message carrying information about the success of the operation.
-	 */
 	@Delete("json")
 	public Map<String, String> remove(String fmJson) {
 		Map<String, String> result = new HashMap<>();
@@ -110,3 +98,5 @@ public class AccessSwitch extends ServerResource {
 		return result;
 	}
 }
+
+*/

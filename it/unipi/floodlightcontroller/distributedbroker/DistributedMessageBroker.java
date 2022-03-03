@@ -337,62 +337,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 								
 				// The output port of the current switch is specified by the second element of the path.
 				OFPort outputPort = shortestPath.getPath().get(1).getPortId();
-								
-				// Create a flow table modification message to add a rule
 				
 				/*
-				OFFlowAdd.Builder fmb = sw.getOFFactory().buildFlowAdd();
-				
-		        fmb.setIdleTimeout(IDLE_TIMEOUT);
-		        fmb.setHardTimeout(HARD_TIMEOUT);
-		        fmb.setBufferId(OFBufferId.NO_BUFFER);
-		        fmb.setOutPort(OFPort.ANY);
-		        fmb.setCookie(U64.of(0));
-		        fmb.setPriority(FlowModUtils.PRIORITY_MAX);
-
-		        // Create the match structure  
-		        Match.Builder mb = sw.getOFFactory().buildMatch();
-		        mb.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-		        .setExact(MatchField.IPV4_DST, resource_address)
-		        .setExact(MatchField.ETH_DST, SERVER_MAC);
-				        			    			
-				OFOxms oxmsBuilder = sw.getOFFactory().oxms();
-				OFActions actionBuilder = sw.getOFFactory().actions();
-				ArrayList<OFAction> actionList = new ArrayList<>();
-				
-				OFActionSetField setMACDestination = actionBuilder.buildSetField()
-				        .setField(oxmsBuilder.buildEthDst().setValue(MacAddress.of(subscriber.getKey())).build())
-				        .build();
-				
-				OFActionSetField setIPDestination = actionBuilder.buildSetField()
-				        .setField(oxmsBuilder.buildIpv4Dst().setValue(IPv4Address.of(subscriber.getValue())).build())
-				        .build();
-				
-				OFActionOutput output = actionBuilder.buildOutput()
-				        .setMaxLen(0xFFffFFff)
-				        .setPort(outputPort)
-				        .build();
-				
-				actionList.add(setMACDestination);
-				actionList.add(setIPDestination);
-				actionList.add(output);
-				    
-				// Set the ICMP reply as packet data 
-				byte[] packetData = ipv4.serialize();
-				
-				OFPacketOut po = sw.getOFFactory().buildPacketOut()
-					    .setData(packetData)
-					    .setActions(actionList)
-					    .setInPort(OFPort.ANY)
-					    .build();
-					 
-				fmb.setActions(actionList);
-		        fmb.setMatch(mb.build());
-
-		        sw.write(fmb.build());
-				sw.write(po);
-				*/
-				
 				OFFlowAdd.Builder fmb = sw.getOFFactory().buildFlowAdd();
 				
 		        fmb.setIdleTimeout(IDLE_TIMEOUT);
@@ -401,17 +347,21 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		        fmb.setOutPort(OFPort.NORMAL);
 		        fmb.setCookie(U64.of(0));
 		        fmb.setPriority(FlowModUtils.PRIORITY_MAX);
-
+				*/
+				
 		        // Create the match structure  
 		        MacAddress userMAC = ethernetFrame.getSourceMACAddress();
 		        IPv4Address userIP = ipPacket.getSourceAddress();
+		        
+		        /*
 		        Match.Builder matchBuilder = sw.getOFFactory().buildMatch();
-
+		        
 		        matchBuilder.setExact(MatchField.ETH_TYPE, EthType.IPv4)
 		                .setExact(MatchField.ETH_SRC, userMAC)
 		                .setExact(MatchField.IPV4_SRC, userIP)
 		                .setExact(MatchField.ETH_DST, SERVER_MAC)
 		                .setExact(MatchField.IPV4_DST, resource_address);
+		        */
 		        
 		        OFActions actions = sw.getOFFactory().actions();
 		        // Create the actions (Change DST mac and IP addresses and set the out-port)
@@ -442,14 +392,16 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		        	    .build();
 		        actionList.add(output);
 		        
-		        
+		        /*
 		        fmb.setActions(actionList);
 		        fmb.setMatch(matchBuilder.build());
 
 		        sw.write(fmb.build());
+		        */
 		        
 		        // Reverse Rule to change the source address and mask the action of the controller
 		        
+		        /*
 				// Create a flow table modification message to add a rule
 				OFFlowAdd.Builder fmbRev = sw.getOFFactory().buildFlowAdd();
 				
@@ -495,6 +447,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		        fmbRev.setMatch(mbRev.build());
 		        
 		        sw.write(fmbRev.build());
+		        */
 
 		        // If we do not apply the same action to the packet we have received and we send it back the first packet will be lost
 		        
@@ -921,7 +874,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	
 	
 	// to delete or review
-	@Override
+	/*
 	public String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP) {
 		
 		loggerREST.info("Received request for delete the subscription of {}, with IP \"{}\".",
@@ -936,6 +889,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
         return "User removed successfully";
 	}
+	*/
 
 	/*@Override
 	public Set<String> getAccessSwitches() {
