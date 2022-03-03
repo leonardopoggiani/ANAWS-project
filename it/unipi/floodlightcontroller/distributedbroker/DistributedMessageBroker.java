@@ -94,6 +94,10 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     // <1.1.1.1, < <00:00:00:00:00:01, 10.0.0.1>,<00:00:00:00:00:02, 10.0.0.2> ..>
     // <1.1.1.2, < <00:00:00:00:00:03, 10.0.0.3>, ..>
   	private final Map<IPv4Address, HashMap<MacAddress, IPv4Address>>  resourceSubscribers = new HashMap<>();
+  	
+	// Access switches.
+    private final Set<String> accessSwitches = new HashSet<>();
+
     
 	@Override
 	public String getName() {
@@ -190,6 +194,28 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return false;
 			
     }
+	
+	 /**
+     * Checks if the switch identified by the given DPID is registered as an access switch.
+     * @param sw  the DPID of the switch.
+     * @return    true if the DPID identifies an access switch, false otherwise.
+     */
+	private boolean isAccessSwitch(String sw) {
+        return accessSwitches.contains(sw);
+    }
+	
+	 public String addAccessSwitch(String dpid) {
+	        loggerREST.info("Received request for the insertion of the access switch {}", dpid);
+	        
+	     // Check if the switch is already present.
+	        if (isAccessSwitch(dpid)) {
+	            loggerREST.info("The switch {} is already an access switch.", dpid);
+	            return "Already an access switch";
+	        }
+	        accessSwitches.add(dpid);
+            loggerREST.info("The switch {} is now an access switch.", dpid);
+            return "Access switch added";
+	 }
 
 	private Command handleIpPacket(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
         MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
@@ -201,14 +227,16 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         logger.info("Switch: {}", sw.getId());
         logger.info("Source: {}, {}", sourceMAC, sourceIP);
         logger.info("Destination: {}, {}", destinationMAC, destinationIP);
+        //Da togliere, solo per provare
+        addAccessSwitch("00:00:00:00:00:00:01:01");
+        loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
-        // The packet is a request to the service from a user.
-        if (isResourceAddress(destinationMAC, destinationIP)) {
+        // The packet is a request to a resource from a user.
+        if (isAccessSwitch(sw.getId().toString()) && isResourceAddress(destinationMAC, destinationIP)) {
             logger.info("The packet is a message to a resource.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
-
         // The packet is transiting through the network.
         logger.info("The packet is transiting through the network.");
         return Command.CONTINUE;
@@ -909,7 +937,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return "User removed successfully";
 	}
 
-	@Override
+	/*@Override
 	public Set<String> getAccessSwitches() {
 		// TODO Auto-generated method stub
 		return null;
@@ -925,5 +953,5 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	public String removeAccessSwitch(DatapathId dpid) {
 		// TODO Auto-generated method stub
 		return null;
-	}
+	}*/
 }
