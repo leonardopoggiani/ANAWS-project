@@ -88,113 +88,12 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     private final Map<IPv4Address, Integer>  resources = new HashMap<>();
     int howManyResources = 1; 
     IPv4Address lastAddressUsed = null;
-    
-    // Access switches.
-    private final Set<DatapathId> accessSwitches = new HashSet<>();
-    
+        
     // Resources and subscribers for each resource
     // <virtual resource address, <real mac address, real ip>>
     // <1.1.1.1, < <00:00:00:00:00:01, 10.0.0.1>,<00:00:00:00:00:02, 10.0.0.2> ..>
     // <1.1.1.2, < <00:00:00:00:00:03, 10.0.0.3>, ..>
   	private final Map<IPv4Address, HashMap<MacAddress, IPv4Address>>  resourceSubscribers = new HashMap<>();
-  	
-  	
-  	// ------- TEMP ---------
-  	
-    private final int ACCESS_SWITCH_DEFAULT_RULE_PRIORITY = 10;
-    
-  	/**
-     * Checks if the switch identified by the given DPID is registered as an access switch.
-     * @param sw  the DPID of the switch.
-     * @return    true if the DPID identifies an access switch, false otherwise.
-     */
-    private boolean isAccessSwitch(DatapathId sw) {
-        return accessSwitches.contains(sw);
-    }
-    
-    private boolean changePriorityOfDefaultRule(DatapathId switchDPID, int priority) {
-        IOFSwitchBackend targetSwitch = (IOFSwitchBackend) switchService.getSwitch(switchDPID);
-
-        if (targetSwitch == null) {
-            logger.error("Cannot modify the priority of the default rule of switch {}. " +
-                                 "The switch is not connected to the network", switchDPID);
-            return false;
-        }
-
-        // Remove the default rule in every table.
-        OFFlowDeleteStrict deleteDefaultRule = targetSwitch.getOFFactory().buildFlowDeleteStrict()
-                .setTableId(TableId.ALL)
-                .setOutPort(OFPort.CONTROLLER)
-                .build();
-        targetSwitch.write(deleteDefaultRule);
-
-        /*
-         *  Insert a new default rule in every table. The insertion is done only in the tables
-         *  that are effectively used by the switch, which is told by getMaxTableForTableMissFlow().
-         */
-        ArrayList<OFAction> outputToController = new ArrayList<>(1);
-        ArrayList<OFMessage> addDefaultRules = new ArrayList<>();
-        outputToController.add(targetSwitch.getOFFactory().actions().output(OFPort.CONTROLLER, 0xffFFffFF));
-
-        for (int tableId = 0; tableId <= targetSwitch.getMaxTableForTableMissFlow().getValue(); tableId++) {
-            OFFlowAdd addDefaultRule = targetSwitch.getOFFactory().buildFlowAdd()
-                    .setTableId(TableId.of(tableId))
-                    .setPriority(priority)
-                    .setActions(outputToController)
-                    .build();
-            addDefaultRules.add(addDefaultRule);
-        }
-        targetSwitch.write(addDefaultRules);
-
-        logger.info("The priority of the default rule of switch {} has been set to {}.",
-                    switchDPID, priority);
-        return true;
-    }
-    
-    @Override
-    public String addAccessSwitch(DatapathId dpid) {
-        loggerREST.info("Received request for the insertion of the access switch {}", dpid);
-
-    	// Check if the switch is already present.
-        if (isAccessSwitch(dpid)) {
-            loggerREST.info("The switch {} is already an access switch.", dpid);
-            return "Already an access switch";
-        }
-
-        boolean success = changePriorityOfDefaultRule(dpid, ACCESS_SWITCH_DEFAULT_RULE_PRIORITY);
-        if (success) {
-            accessSwitches.add(dpid);
-            loggerREST.info("The switch {} is now an access switch.", dpid);
-            return "Access switch added";
-        }
-
-        loggerREST.info("The switch {} is not connected to the network.", dpid);
-        return "Switch not found";
-    }
-    
-    @Override
-    public String removeAccessSwitch(DatapathId dpid) {
-        loggerREST.info("Received request for the cancellation of the access switch {}", dpid);
-
-        if (isAccessSwitch(dpid)) {
-            /*
-             *  It is not necessary to check if the operation on the priority succeeded: if the
-             *  switch is not connected to the network, its flow table will be automatically flushed
-             *  at the next handshake with the controller.
-             */
-            changePriorityOfDefaultRule(dpid, 0);
-
-            loggerREST.info("Removed access switch {}", dpid);
-            accessSwitches.remove(dpid);
-            return "Access switch removed";
-        }
-
-        loggerREST.info("The switch {} is not an access switch", dpid);
-    	return "Access switch not found";
-    }
-
-  	// ------- TEMP ---------
-
     
 	@Override
 	public String getName() {
@@ -1012,6 +911,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
 	@Override
 	public Set<String> getAccessSwitches() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String addAccessSwitch(DatapathId dpid) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String removeAccessSwitch(DatapathId dpid) {
 		// TODO Auto-generated method stub
 		return null;
 	}
