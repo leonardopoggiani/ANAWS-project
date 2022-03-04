@@ -42,7 +42,6 @@ public class Subscriber extends ServerResource {
 	        String resources = (String) getRequestAttributes().get("resource");
 			IPv4Address resource_address = IPv4Address.of(resources);
 			String user_address;
-			//Non sapevo come prenderlo per ora l'ho messo qua
 			String MAC;
 			try {
 				user_address = root.get("address").asText();
