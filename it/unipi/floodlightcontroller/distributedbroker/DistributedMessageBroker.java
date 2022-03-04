@@ -173,7 +173,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return false;
     }
 	
-	private boolean isServerCompleteAddress(MacAddress addressMAC, IPv4Address addressIP) {
+	private boolean isSubscriberCompleteAddress(MacAddress addressMAC, IPv4Address addressIP) {
 		
 		logger.info("Source MAC: {} ,source IP: {}", addressMAC, addressIP);
 		
@@ -196,6 +196,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     }
 	
 	 /**
+     * Checks if the publisher is trying to publish a message on a resource in which it is also a subscriber.
+     * @param publisherAddressMAC
+     * @param resourceIP
+     * @return    true if the publisher is also a subscriber for this resource, false otherwise.
+     */
+		private boolean isValidPublisher(MacAddress publisherAddressMAC, IPv4Address resourceIP) {
+		
+			return !resourceSubscribers.get(resourceIP).containsKey(publisherAddressMAC);
+			
+    }
+	
+	 /**
      * Checks if the switch identified by the given DPID is registered as an access switch.
      * @param sw  the DPID of the switch.
      * @return    true if the DPID identifies an access switch, false otherwise.
@@ -204,18 +216,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return accessSwitches.contains(sw);
     }
 	
-	 public String addAccessSwitch(String dpid) {
-	        loggerREST.info("Received request for the insertion of the access switch {}", dpid);
-	        
-	     // Check if the switch is already present.
-	        if (isAccessSwitch(dpid)) {
-	            loggerREST.info("The switch {} is already an access switch.", dpid);
-	            return "Already an access switch";
-	        }
-	        accessSwitches.add(dpid);
-            loggerREST.info("The switch {} is now an access switch.", dpid);
-            return "Access switch added";
-	 }
+
+	 
 
 	private Command handleIpPacket(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
         MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
@@ -228,7 +230,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         logger.info("Source: {}, {}", sourceMAC, sourceIP);
         logger.info("Destination: {}, {}", destinationMAC, destinationIP);
         //Da togliere, solo per provare
-        addAccessSwitch("00:00:00:00:00:00:01:01");
+        //addAccessSwitch("00:00:00:00:00:00:01:01");
         loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
         // The packet is a request to a resource from a user.
@@ -763,17 +765,19 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         // If the packet is an IP request, check if IP destination address is virtual.
         if (packet instanceof IPv4) {
             IPv4 ipPacket = (IPv4) packet;
-            
 	        if (!isResourceIPAddress(ipPacket.getDestinationAddress())) {
-	        	if (!isServerCompleteAddress(sourceMAC, ((IPv4) packet).getSourceAddress())) {
-	        		logger.info("The packet is an IP request coming from an user and not addressed " +
-                            "to a resource. Dropping the packet.");
-	        		return true;
-	        	}
-	            
+	        	logger.info("The packet is an IP request not addressed to a resource");
+	        	return true;      
 	        }
 	        
-	        logger.info("The packet is an IP request or a reply. Accepting the packet.");
+	      //If ip destination address is a valid virtual resource address check if the publisher is valid
+	        if (!isValidPublisher(sourceMAC, ipPacket.getDestinationAddress())) {
+        		logger.info("The packet is an IP request addressed to a resource but coming from a not valid user");
+        		return true;
+        	}
+	        
+	        
+	        logger.info("The packet is a valid IP request or a reply. Accepting the packet.");
 	        
 	        return false;
         }
@@ -788,7 +792,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
         IPacket packet = ethernetFrame.getPayload(); 
         
-        if (filterPacket(sw, ethernetFrame)) {
+       if (filterPacket(sw, ethernetFrame)) {
             return Command.STOP;
         }
 
@@ -891,21 +895,48 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	}
 	*/
 
-	/*@Override
+	@Override
 	public Set<String> getAccessSwitches() {
-		// TODO Auto-generated method stub
-		return null;
+	        return accessSwitches;
 	}
-
+	
 	@Override
 	public String addAccessSwitch(DatapathId dpid) {
+        loggerREST.info("Received request for the insertion of the access switch {}", dpid);
+        
+     // Check if the switch is already present.
+        if (isAccessSwitch(dpid.toString())) {
+            loggerREST.info("The switch {} is already an access switch.", dpid);
+            return "Already an access switch";
+        }
+        accessSwitches.add(dpid.toString());
+        loggerREST.info("The switch {} is now an access switch.", dpid);
+        return "Access switch added";
+ }
+
+	@Override
+	public String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public String removeAccessSwitch(DatapathId dpid) {
-		// TODO Auto-generated method stub
-		return null;
-	}*/
-}
+		 loggerREST.info("Received request for the cancellation of the access switch {}", dpid);
+
+	        if (isAccessSwitch(dpid.toString())) {
+	            /*
+	             *  It is not necessary to check if the operation on the priority succeeded: if the
+	             *  switch is not connected to the network, its flow table will be automatically flushed
+	             *  at the next handshake with the controller.
+	             */
+	        	//TODO qualcosa sulla priorità
+	            loggerREST.info("Removed access switch {}", dpid);
+	            accessSwitches.remove(dpid);
+	            return "Access switch removed";
+	        }
+	        loggerREST.info("The switch {} is not an access switch", dpid);
+	    	return "Access switch not found";
+	    }
+	}
+
