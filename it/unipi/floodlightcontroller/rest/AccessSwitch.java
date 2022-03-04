@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Class managing the resource "/access-switches/json".
  */
-/*
+
 public class AccessSwitch extends ServerResource {
 	
 
@@ -98,5 +98,3 @@ public class AccessSwitch extends ServerResource {
 		return result;
 	}
 }
-
-*/
