@@ -1,10 +1,16 @@
 import socket
+import sys
 
-UDP_IP = "127.0.0.1"
+UDP_IP = "1.1.1.1"
 UDP_PORT = 5005
 MESSAGE = b"Hello, World!"
+
+print("Arguments without the script name ", (len(sys.argv)-1))
+print("Arguments given ")
+for i in range(1, len(sys.argv)):
+    print(sys.argv[i])
    
-print("UDP target IP: %s" % UDP_IP)
+print("UDP target IP: %s" % sys.argv[1])
 print("UDP target port: %s" % UDP_PORT)
 print("message: %s" % MESSAGE)
  
