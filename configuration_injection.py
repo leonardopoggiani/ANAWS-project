@@ -21,3 +21,6 @@ print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address
 
 print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.3", "MAC": "00:00:00:00:00:03"}), headers=header).json())
 
+#Access switches
+print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:01"}), headers=header).json())
+

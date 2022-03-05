@@ -15,7 +15,11 @@ def get_ip_address(ifname):
 
 addrs = psutil.net_if_addrs()
 
-UDP_IP = get_ip_address(addrs.keys()[1])
+for address in addrs:
+    if address != "lo" and address.split("-")[1] == "eth0":
+        UDP_IP = get_ip_address(address)
+
+print("Server ip: " + UDP_IP)
 
 sock = socket.socket(socket.AF_INET, # Internet
                      socket.SOCK_DGRAM) # UDP

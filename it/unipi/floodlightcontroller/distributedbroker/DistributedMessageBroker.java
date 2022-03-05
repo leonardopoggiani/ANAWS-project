@@ -229,8 +229,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         logger.info("Switch: {}", sw.getId());
         logger.info("Source: {}, {}", sourceMAC, sourceIP);
         logger.info("Destination: {}, {}", destinationMAC, destinationIP);
-        //Da togliere, solo per provare
-        //addAccessSwitch("00:00:00:00:00:00:01:01");
         loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
         // The packet is a request to a resource from a user.
@@ -239,6 +237,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
+        
         // The packet is transiting through the network.
         logger.info("The packet is transiting through the network.");
         return Command.CONTINUE;
@@ -257,9 +256,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         Path shortestPath = null;
 
         for (SwitchPort endSwitch : endSwitches) {
-        	
-            logger.info("startSwitch: {}", startSwitch.toString());
-            logger.info("endSwitch: {} \n endPort: {} \n", endSwitch.getNodeId().toString(), endSwitch.getPortId().toString());
             
             Path candidateShortestPath = routingService.getPath(
             		startSwitch, 
@@ -284,9 +280,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     }
 	
 	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
-		
-		logger.info("I'm switch: {}", sw.getId().toString());
-		
+				
 		IPv4Address resource_address = ipPacket.getDestinationAddress();
 		
 		// the request to the resource must retrieve the list of subscribers of the resource
@@ -303,8 +297,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			// no subscribers for this resource
 			logger.info("No subscribers found for this resource: " + resource_address.toString());
 			return;
-		} else {
-			logger.info("Subscribers list found for: " + resource_address.toString());
 		}
 
 		// i want to send a packet to every subscriber on the list
@@ -339,31 +331,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 								
 				// The output port of the current switch is specified by the second element of the path.
 				OFPort outputPort = shortestPath.getPath().get(1).getPortId();
-				
-				/*
-				OFFlowAdd.Builder fmb = sw.getOFFactory().buildFlowAdd();
-				
-		        fmb.setIdleTimeout(IDLE_TIMEOUT);
-		        fmb.setHardTimeout(HARD_TIMEOUT);
-		        fmb.setBufferId(OFBufferId.NO_BUFFER);
-		        fmb.setOutPort(OFPort.NORMAL);
-		        fmb.setCookie(U64.of(0));
-		        fmb.setPriority(FlowModUtils.PRIORITY_MAX);
-				*/
-				
-		        // Create the match structure  
-		        MacAddress userMAC = ethernetFrame.getSourceMACAddress();
-		        IPv4Address userIP = ipPacket.getSourceAddress();
-		        
-		        /*
-		        Match.Builder matchBuilder = sw.getOFFactory().buildMatch();
-		        
-		        matchBuilder.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-		                .setExact(MatchField.ETH_SRC, userMAC)
-		                .setExact(MatchField.IPV4_SRC, userIP)
-		                .setExact(MatchField.ETH_DST, SERVER_MAC)
-		                .setExact(MatchField.IPV4_DST, resource_address);
-		        */
 		        
 		        OFActions actions = sw.getOFFactory().actions();
 		        // Create the actions (Change DST mac and IP addresses and set the out-port)
@@ -394,65 +361,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		        	    .build();
 		        actionList.add(output);
 		        
-		        /*
-		        fmb.setActions(actionList);
-		        fmb.setMatch(matchBuilder.build());
-
-		        sw.write(fmb.build());
-		        */
-		        
-		        // Reverse Rule to change the source address and mask the action of the controller
-		        
-		        /*
-				// Create a flow table modification message to add a rule
-				OFFlowAdd.Builder fmbRev = sw.getOFFactory().buildFlowAdd();
-				
-				fmbRev.setIdleTimeout(IDLE_TIMEOUT);
-				fmbRev.setHardTimeout(HARD_TIMEOUT);
-				fmbRev.setBufferId(OFBufferId.NO_BUFFER);
-				fmbRev.setOutPort(OFPort.CONTROLLER);
-				fmbRev.setCookie(U64.of(0));
-				fmbRev.setPriority(FlowModUtils.PRIORITY_MAX);
-				
-		        Match.Builder mbRev = sw.getOFFactory().buildMatch();
-
-		        mbRev.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-                .setExact(MatchField.ETH_SRC, MacAddress.of(subscriber.getKey()))
-                .setExact(MatchField.IPV4_SRC, IPv4Address.of(subscriber.getValue()));
-
-		        ArrayList<OFAction> actionListRev = new ArrayList<OFAction>();
-		        
-		        OFActionSetField setDlDstRev = actions.buildSetField()
-		        	    .setField(
-		        	        oxms.buildEthSrc()
-		        	        .setValue(SERVER_MAC)
-		        	        .build()
-		        	    )
-		        	    .build();
-		        actionListRev.add(setDlDstRev);
-
-		        OFActionSetField setNwDstRev = actions.buildSetField()
-		        	    .setField(
-		        	        oxms.buildIpv4Src()
-		        	        .setValue(resource_address)
-		        	        .build()
-		        	    ).build();
-		        actionListRev.add(setNwDstRev);
-		        
-		        OFActionOutput outputRev = actions.buildOutput()
-		        	    .setMaxLen(0xFFffFFff)
-		        	    .setPort(OFPort.of(1))
-		        	    .build();
-		        actionListRev.add(outputRev);
-		        
-		        fmbRev.setActions(actionListRev);
-		        fmbRev.setMatch(mbRev.build());
-		        
-		        sw.write(fmbRev.build());
-		        */
-
-		        // If we do not apply the same action to the packet we have received and we send it back the first packet will be lost
-		        
 				// Create the Packet-Out and set basic data for it (buffer id and in port)
 				OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
 				pob.setBufferId(packetIn.getBufferId());
@@ -476,23 +384,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			}		
 						
 		}
-		
-		logger.info("Packet-out and flow mod correctly sent to the switch.");
 	}
-	
-	private Match createMatchWhenRequestToService(IOFSwitch sw, Ethernet ethernetFrame, IPv4 ipPacket, IPv4Address resource_address) {
-        MacAddress userMAC = ethernetFrame.getSourceMACAddress();
-        IPv4Address userIP = ipPacket.getSourceAddress();
-        Match.Builder matchBuilder = sw.getOFFactory().buildMatch();
-
-        matchBuilder.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-                .setExact(MatchField.ETH_SRC, userMAC)
-                .setExact(MatchField.IPV4_SRC, userIP)
-                .setExact(MatchField.ETH_DST, SERVER_MAC)
-                .setExact(MatchField.IPV4_DST, resource_address);
-
-        return matchBuilder.build();
-    }
 	
 	private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, MacAddress serverMAC,
             IPv4Address serverIP, OFPort outputPort) {
@@ -519,137 +411,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		actionList.add(output);
 		
 		return actionList;
-	}
-	
-	private void instructSwitchWhenRequestToServer(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame,
-        IPv4 ipPacket, MacAddress serverMAC, IPv4Address serverIP,
-        OFPort outputPort, IPv4Address resource_address) {
-		
-		logger.info("Server MAC: " + serverMAC.toString() + ", server IP: " + serverIP.toString() + ", outputPort: " + outputPort.toString());
-		
-		// Create a flow table modification message to add a rule
-		OFFlowAdd.Builder fmb = sw.getOFFactory().buildFlowAdd();
-		
-        fmb.setIdleTimeout(IDLE_TIMEOUT);
-        fmb.setHardTimeout(HARD_TIMEOUT);
-        fmb.setBufferId(OFBufferId.NO_BUFFER);
-        fmb.setOutPort(OFPort.ANY);
-        fmb.setCookie(U64.of(0));
-        fmb.setPriority(FlowModUtils.PRIORITY_MAX);
-
-        // Create the match structure  
-        MacAddress userMAC = ethernetFrame.getSourceMACAddress();
-        IPv4Address userIP = ipPacket.getSourceAddress();
-        Match.Builder matchBuilder = sw.getOFFactory().buildMatch();
-
-        matchBuilder.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-                .setExact(MatchField.ETH_SRC, userMAC)
-                .setExact(MatchField.IPV4_SRC, userIP)
-                .setExact(MatchField.ETH_DST, SERVER_MAC)
-                .setExact(MatchField.IPV4_DST, resource_address);
-        
-        OFActions actions = sw.getOFFactory().actions();
-        // Create the actions (Change DST mac and IP addresses and set the out-port)
-        ArrayList<OFAction> actionList = new ArrayList<OFAction>();
-        
-        OFOxms oxms = sw.getOFFactory().oxms();
-
-        OFActionSetField setDlDst = actions.buildSetField()
-        	    .setField(
-        	        oxms.buildEthDst()
-        	        .setValue(serverMAC)
-        	        .build()
-        	    )
-        	    .build();
-        actionList.add(setDlDst);
-
-        OFActionSetField setNwDst = actions.buildSetField()
-        	    .setField(
-        	        oxms.buildIpv4Dst()
-        	        .setValue(serverIP)
-        	        .build()
-        	    ).build();
-        actionList.add(setNwDst);
-        
-        OFActionOutput output = actions.buildOutput()
-        	    .setMaxLen(0xFFffFFff)
-        	    .setPort(outputPort)
-        	    .build();
-        actionList.add(output);
-        
-        
-        fmb.setActions(actionList);
-        fmb.setMatch(matchBuilder.build());
-
-        sw.write(fmb.build());
-        
-        // Reverse Rule to change the source address and mask the action of the controller
-        
-		// Create a flow table modification message to add a rule
-		OFFlowAdd.Builder fmbRev = sw.getOFFactory().buildFlowAdd();
-		
-		fmbRev.setIdleTimeout(IDLE_TIMEOUT);
-		fmbRev.setHardTimeout(HARD_TIMEOUT);
-		fmbRev.setBufferId(OFBufferId.NO_BUFFER);
-		fmbRev.setOutPort(OFPort.CONTROLLER);
-		fmbRev.setCookie(U64.of(0));
-		fmbRev.setPriority(FlowModUtils.PRIORITY_MAX);
-
-        Match.Builder mbRev = sw.getOFFactory().buildMatch();
-        mbRev.setExact(MatchField.ETH_TYPE, EthType.IPv4)
-        .setExact(MatchField.IPV4_SRC, serverIP)
-        .setExact(MatchField.ETH_SRC, serverMAC);
-        
-        ArrayList<OFAction> actionListRev = new ArrayList<OFAction>();
-        
-        OFActionSetField setDlDstRev = actions.buildSetField()
-        	    .setField(
-        	        oxms.buildEthSrc()
-        	        .setValue(SERVER_MAC)
-        	        .build()
-        	    )
-        	    .build();
-        actionListRev.add(setDlDstRev);
-
-        OFActionSetField setNwDstRev = actions.buildSetField()
-        	    .setField(
-        	        oxms.buildIpv4Src()
-        	        .setValue(SERVER_IP)
-        	        .build()
-        	    ).build();
-        actionListRev.add(setNwDstRev);
-        
-        OFActionOutput outputRev = actions.buildOutput()
-        	    .setMaxLen(0xFFffFFff)
-        	    .setPort(OFPort.of(1))
-        	    .build();
-        actionListRev.add(outputRev);
-        
-        fmbRev.setActions(actionListRev);
-        fmbRev.setMatch(mbRev.build());
-        
-        sw.write(fmbRev.build());
-
-        // If we do not apply the same action to the packet we have received and we send it back the first packet will be lost
-        
-		// Create the Packet-Out and set basic data for it (buffer id and in port)
-		OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
-		pob.setBufferId(packetIn.getBufferId());
-		pob.setInPort(OFPort.ANY);
-		
-		// Assign the action
-		pob.setActions(actionList);
-		
-		// Packet might be buffered in the switch or encapsulated in Packet-In 
-		// If the packet is encapsulated in Packet-In sent it back
-		if (packetIn.getBufferId() == OFBufferId.NO_BUFFER) {
-			// Packet-In buffer-id is none, the packet is encapsulated -> send it back
-            byte[] packetData = packetIn.getData();
-            pob.setData(packetData);
-            
-		} 
-				
-		sw.write(pob.build());
 	}
 
 	private IPacket createArpReplyForServer(Ethernet ethernetFrame, ARP arpRequest, IPv4Address resource_virtual_address) {
@@ -739,7 +500,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
      * @param ethernetFrame  the Ethernet frame encapsulated in the packet-in.
      * @return               true if the packet must be dropped, false otherwise.
      */
-    
     private boolean filterPacket(IOFSwitch sw, Ethernet ethernetFrame) {
         MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
         MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
@@ -770,12 +530,11 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	        	return true;      
 	        }
 	        
-	      //If ip destination address is a valid virtual resource address check if the publisher is valid
+	        // If ip destination address is a valid virtual resource address check if the publisher is valid
 	        if (!isValidPublisher(sourceMAC, ipPacket.getDestinationAddress())) {
         		logger.info("The packet is an IP request addressed to a resource but coming from a not valid user");
         		return true;
         	}
-	        
 	        
 	        logger.info("The packet is a valid IP request or a reply. Accepting the packet.");
 	        
