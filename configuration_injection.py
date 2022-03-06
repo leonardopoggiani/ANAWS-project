@@ -23,4 +23,5 @@ print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address
 
 #Access switches
 print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:01"}), headers=header).json())
+print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:02"}), headers=header).json())
 

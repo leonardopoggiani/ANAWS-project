@@ -97,6 +97,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
   	
 	// Access switches.
     private final Set<String> accessSwitches = new HashSet<>();
+    
+    private final int ACCESS_SWITCH_DEFAULT_RULE_PRIORITY = 10;
 
     
 	@Override
@@ -196,6 +198,50 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     }
 	
 	 /**
+     * Changes the priority of the default rule of a switch, for each actually used flow table.
+     * @param switchDPID  the DPID of the target switch.
+     * @param priority    the new priority of the default rule.
+     * @return            true if the target switch is connected to the network and
+     *                    the flow mod is sent, false otherwise.
+     */
+	private boolean changePriorityOfDefaultRule(DatapathId switchDPID, int priority) {
+        IOFSwitch targetSwitch = (IOFSwitch) switchService.getSwitch(switchDPID);
+        
+        if (targetSwitch == null) {
+            logger.error("Cannot modify the priority of the default rule of switch {}. " +
+                                 "The switch is not connected to the network", switchDPID);
+            return false;
+        }
+        // Remove the default rule in every table.
+        OFFlowDeleteStrict deleteDefaultRule = targetSwitch.getOFFactory().buildFlowDeleteStrict()
+                .setTableId(TableId.ALL)
+                .setOutPort(OFPort.CONTROLLER)
+                .build();
+        targetSwitch.write(deleteDefaultRule);
+        /*
+         *  Insert a new default rule in every table. The insertion is done only in the tables
+         *  that are effectively used by the switch, which is told by getMaxTableForTableMissFlow().
+         */
+        ArrayList<OFAction> outputToController = new ArrayList<>(1);
+        ArrayList<OFMessage> addDefaultRules = new ArrayList<>();
+        outputToController.add(targetSwitch.getOFFactory().actions().output(OFPort.CONTROLLER, 0xffFFffFF));
+        for (int tableId = 0; tableId <= ((IOFSwitchBackend) targetSwitch).getMaxTableForTableMissFlow().getValue(); tableId++) {
+            OFFlowAdd addDefaultRule = targetSwitch.getOFFactory().buildFlowAdd()
+                    .setTableId(TableId.of(tableId))
+                    .setPriority(priority)
+                    .setActions(outputToController)
+                    .build();
+            addDefaultRules.add(addDefaultRule);
+        }
+        targetSwitch.write(addDefaultRules);
+
+        logger.info("The priority of the default rule of switch {} has been set to {}.",
+                    switchDPID, priority);
+        return true;
+    }
+	
+	
+	 /**
      * Checks if the publisher is trying to publish a message on a resource in which it is also a subscriber.
      * @param publisherAddressMAC
      * @param resourceIP
@@ -232,7 +278,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
         // The packet is a request to a resource from a user.
-        if (isAccessSwitch(sw.getId().toString()) && isResourceAddress(destinationMAC, destinationIP)) {
+        if (isAccessSwitch(sw.getId().toString()) && isResourceAddress(destinationMAC, destinationIP) ) {
             logger.info("The packet is a message to a resource.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
@@ -278,10 +324,34 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         return shortestPath;
     }
+    
+    private boolean isFirstSwitch(IOFSwitch sw, MacAddress source_mac_address) {
+    	IDevice dstDevice = deviceManagerService.findDevice(
+				source_mac_address, 
+				VlanVid.ZERO, 
+				IPv4Address.NONE, 
+				IPv6Address.NONE, 
+				DatapathId.NONE, 
+				OFPort.ZERO
+			);
+		
+		SwitchPort[] switches_host = dstDevice.getAttachmentPoints();
+		for(SwitchPort swport : switches_host) {
+			if(swport.getNodeId().equals(sw.getId()))
+				return true;
+		}
+	
+		return false;
+    }
 	
 	private void handleRequestToResource(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
 				
 		IPv4Address resource_address = ipPacket.getDestinationAddress();
+		MacAddress sourceMac = ethernetFrame.getSourceMACAddress();
+		
+		if(!isFirstSwitch(sw, sourceMac))
+			return;
+		
 		
 		// the request to the resource must retrieve the list of subscribers of the resource
 		Map<String, String> subscriber_list = null;
@@ -320,7 +390,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 				
 				logger.info("Dev: " + device.toString());
 				 
-				SwitchPort[] switches = device.getAttachmentPoints();
+				SwitchPort[] switches = device.getAttachmentPoints(); 
+				
 				
 				// Compute the shortest path from the switch that sent the packet-in to the candidate server.
 				Path shortestPath = getShortestPath(sw.getId(), switches);
@@ -386,7 +457,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		}
 	}
 	
-	private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, MacAddress serverMAC,
+	/*private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, MacAddress serverMAC,
             IPv4Address serverIP, OFPort outputPort) {
 		
 		OFOxms oxmsBuilder = sw.getOFFactory().oxms();
@@ -412,7 +483,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		return actionList;
 	}
-
+	*/
 	private IPacket createArpReplyForServer(Ethernet ethernetFrame, ARP arpRequest, IPv4Address resource_virtual_address) {
 		logger.info("Sender MAC: {}",arpRequest.getSenderHardwareAddress());
 		logger.info("Sender IP: {}",arpRequest.getSenderProtocolAddress());
@@ -516,7 +587,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
                         "to a resource. Dropping the packet.");
                 return true;
             }
-
+            
             logger.info("The packet is an ARP request coming from an user and addressed " +
                                 "to a resource. Accepting the packet.");
             return false;
@@ -535,7 +606,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         		logger.info("The packet is an IP request addressed to a resource but coming from a not valid user");
         		return true;
         	}
-	        
+	       
 	        logger.info("The packet is a valid IP request or a reply. Accepting the packet.");
 	        
 	        return false;
@@ -668,7 +739,13 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
             loggerREST.info("The switch {} is already an access switch.", dpid);
             return "Already an access switch";
         }
-        accessSwitches.add(dpid.toString());
+        boolean success = changePriorityOfDefaultRule(dpid, ACCESS_SWITCH_DEFAULT_RULE_PRIORITY);
+        if (success) {
+            accessSwitches.add(dpid.toString());
+            loggerREST.info("The switch {} is now an access switch.", dpid);
+            return "Access switch added";
+        }
+        
         loggerREST.info("The switch {} is now an access switch.", dpid);
         return "Access switch added";
  }
