@@ -175,7 +175,27 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return false;
     }
 	
-	
+	private boolean isSubscriberCompleteAddress(MacAddress addressMAC, IPv4Address addressIP) {
+		
+		logger.info("Source MAC: {} ,source IP: {}", addressMAC, addressIP);
+		
+		for (Entry<IPv4Address, HashMap<MacAddress, IPv4Address>> resource : resourceSubscribers.entrySet()) {
+			
+			HashMap<MacAddress, IPv4Address> list = resource.getValue();
+			
+			for (Entry<MacAddress, IPv4Address> subscriber : list.entrySet() ) {
+				logger.info("subscriber MAC: {} ,subscriber IP: {}", subscriber.getKey(), subscriber.getValue());
+				
+				if( (subscriber.getKey().compareTo(addressMAC) == 0) && (subscriber.getValue().compareTo(addressIP) == 0) ) {
+					logger.info("Subscriber found");
+					return true;
+				}
+			}
+		}
+		
+		return false;
+			
+    }
 	
 	 /**
      * Changes the priority of the default rule of a switch, for each actually used flow table.
@@ -316,9 +336,13 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			);
 		
 		SwitchPort[] switches_host = dstDevice.getAttachmentPoints();
+		
 		for(SwitchPort swport : switches_host) {
-			if(swport.getNodeId().equals(sw.getId()))
+			logger.info("SwitchPort: {}", swport.toString());
+			if(swport.getNodeId().equals(sw.getId())) {
+				logger.info("First switch!!");
 				return true;
+			}
 		}
 	
 		return false;
@@ -329,10 +353,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		IPv4Address resource_address = ipPacket.getDestinationAddress();
 		MacAddress sourceMac = ethernetFrame.getSourceMACAddress();
 		
-		if(!isFirstSwitch(sw, sourceMac))
-			
-			return;
-		
+		if(!isFirstSwitch(sw, sourceMac)) {
+			return;	
+		}
 		
 		// the request to the resource must retrieve the list of subscribers of the resource
 		Map<String, String> subscriber_list = null;
@@ -356,21 +379,22 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 			//OFPort outputPort = OFPort.ANY;
 			logger.info("Subscriber: {}", subscriber.getKey());
 			
-		
-			IDevice dstDevice = deviceManagerService.findDevice(
-					MacAddress.of(subscriber.getKey()), 
-					VlanVid.ZERO, 
-					IPv4Address.NONE, 
-					IPv6Address.NONE, 
-					DatapathId.NONE, 
-					OFPort.ZERO
-				);
-			if(dstDevice != null)
-			{
+			Iterator<? extends IDevice> dstDev = deviceManagerService.queryDevices(
+						MacAddress.of(subscriber.getKey()), 
+						VlanVid.ZERO, 
+						IPv4Address.NONE, 
+						IPv6Address.NONE, 
+						DatapathId.NONE, 
+						OFPort.ZERO
+					);
+			
+			if(dstDev.hasNext()) {
+				 
+				IDevice device =  dstDev.next();
 				
-				logger.info("Dev: " + dstDevice.toString());
-			 
-				SwitchPort[] switches = dstDevice.getAttachmentPoints(); 
+				logger.info("Dev: " + device.toString());
+				 
+				SwitchPort[] switches = device.getAttachmentPoints(); 
 				
 				
 				// Compute the shortest path from the switch that sent the packet-in to the candidate server.
@@ -384,8 +408,34 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 				OFPort outputPort = shortestPath.getPath().get(1).getPortId();
 		        
 		        OFActions actions = sw.getOFFactory().actions();
-		       
-		        ArrayList<OFAction> actionList = translateDestinationAddressIntoReal(sw, subscriber.getKey(), subscriber.getValue(), outputPort);
+		        // Create the actions (Change DST mac and IP addresses and set the out-port)
+		        ArrayList<OFAction> actionList = new ArrayList<OFAction>();
+		        
+		        OFOxms oxms = sw.getOFFactory().oxms();
+
+		        OFActionSetField setDlDst = actions.buildSetField()
+		        	    .setField(
+		        	        oxms.buildEthDst()
+		        	        .setValue(MacAddress.of(subscriber.getKey()))
+		        	        .build()
+		        	    )
+		        	    .build();
+		        actionList.add(setDlDst);
+
+		        OFActionSetField setNwDst = actions.buildSetField()
+		        	    .setField(
+		        	        oxms.buildIpv4Dst()
+		        	        .setValue(IPv4Address.of(subscriber.getValue()))
+		        	        .build()
+		        	    ).build();
+		        actionList.add(setNwDst);
+		        
+		        OFActionOutput output = actions.buildOutput()
+		        	    .setMaxLen(0xFFffFFff)
+		        	    .setPort(outputPort)
+		        	    .build();
+		        actionList.add(output);
+		        
 				// Create the Packet-Out and set basic data for it (buffer id and in port)
 				OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
 				pob.setBufferId(packetIn.getBufferId());
@@ -411,19 +461,19 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		}
 	}
 	
-	private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, String subscriberMAC,
-            String subscriberIP, OFPort outputPort) {
+	/*private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, MacAddress serverMAC,
+            IPv4Address serverIP, OFPort outputPort) {
 		
 		OFOxms oxmsBuilder = sw.getOFFactory().oxms();
 		OFActions actionBuilder = sw.getOFFactory().actions();
 		ArrayList<OFAction> actionList = new ArrayList<>();
 		
 		OFActionSetField setMACDestination = actionBuilder.buildSetField()
-		.setField(oxmsBuilder.buildEthDst().setValue(MacAddress.of(subscriberMAC)).build())
+		.setField(oxmsBuilder.buildEthDst().setValue(serverMAC).build())
 		.build();
 		
 		OFActionSetField setIPDestination = actionBuilder.buildSetField()
-		.setField(oxmsBuilder.buildIpv4Dst().setValue(IPv4Address.of(subscriberIP)).build())
+		.setField(oxmsBuilder.buildIpv4Dst().setValue(serverIP).build())
 		.build();
 		
 		OFActionOutput output = actionBuilder.buildOutput()
@@ -437,7 +487,31 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		return actionList;
 	}
-	
+	*/
+	private IPacket createArpReplyForServer(Ethernet ethernetFrame, ARP arpRequest, IPv4Address resource_virtual_address) {
+		logger.info("Sender MAC: {}",arpRequest.getSenderHardwareAddress());
+		logger.info("Sender IP: {}",arpRequest.getSenderProtocolAddress());
+		logger.info("destination MAC: {}",ethernetFrame.getSourceMACAddress());
+
+        return new Ethernet()
+                .setSourceMACAddress(SERVER_MAC)
+                .setDestinationMACAddress(ethernetFrame.getSourceMACAddress())
+                .setEtherType(EthType.ARP)
+                .setPriorityCode(ethernetFrame.getPriorityCode())
+                .setPayload(
+                        new ARP()
+                                .setHardwareType(ARP.HW_TYPE_ETHERNET)
+                                .setProtocolType(ARP.PROTO_TYPE_IP)
+                                .setHardwareAddressLength((byte) 6)
+                                .setProtocolAddressLength((byte) 4)
+                                .setOpCode(ARP.OP_REPLY)
+                                .setSenderHardwareAddress(SERVER_MAC)
+                                .setSenderProtocolAddress(resource_virtual_address)
+                                .setTargetHardwareAddress(arpRequest.getSenderHardwareAddress())
+                                .setTargetProtocolAddress(arpRequest.getSenderProtocolAddress()));
+        
+        
+    }
 	
 	private Command handleArpRequest(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, ARP arpRequest) {
         IPacket arpReply = null;
@@ -591,31 +665,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return list;
     }
 
-	private IPacket createArpReplyForServer(Ethernet ethernetFrame, ARP arpRequest, IPv4Address resource_virtual_address) {
-		logger.info("Sender MAC: {}",arpRequest.getSenderHardwareAddress());
-		logger.info("Sender IP: {}",arpRequest.getSenderProtocolAddress());
-		logger.info("destination MAC: {}",ethernetFrame.getSourceMACAddress());
-	
-	    return new Ethernet()
-	            .setSourceMACAddress(SERVER_MAC)
-	            .setDestinationMACAddress(ethernetFrame.getSourceMACAddress())
-	            .setEtherType(EthType.ARP)
-	            .setPriorityCode(ethernetFrame.getPriorityCode())
-	            .setPayload(
-	                    new ARP()
-	                            .setHardwareType(ARP.HW_TYPE_ETHERNET)
-	                            .setProtocolType(ARP.PROTO_TYPE_IP)
-	                            .setHardwareAddressLength((byte) 6)
-	                            .setProtocolAddressLength((byte) 4)
-	                            .setOpCode(ARP.OP_REPLY)
-	                            .setSenderHardwareAddress(SERVER_MAC)
-	                            .setSenderProtocolAddress(resource_virtual_address)
-	                            .setTargetHardwareAddress(arpRequest.getSenderHardwareAddress())
-	                            .setTargetProtocolAddress(arpRequest.getSenderProtocolAddress()));
-	    
-	    
-	}
-
 	@Override
 	public String createResource() {
 		IPv4Address address = null;
@@ -689,19 +738,18 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	public String addAccessSwitch(DatapathId dpid) {
         loggerREST.info("Received request for the insertion of the access switch {}", dpid);
         
-     // Check if the switch is already present.
+        // Check if the switch is already present.
         if (isAccessSwitch(dpid.toString())) {
             loggerREST.info("The switch {} is already an access switch.", dpid);
             return "Already an access switch";
         }
-        boolean success = changePriorityOfDefaultRule(dpid, ACCESS_SWITCH_DEFAULT_RULE_PRIORITY);
-        if (success) {
-            accessSwitches.add(dpid.toString());
-            loggerREST.info("The switch {} is now an access switch.", dpid);
-            return "Access switch added";
-        }
+        //boolean success = changePriorityOfDefaultRule(dpid, ACCESS_SWITCH_DEFAULT_RULE_PRIORITY);
+        // if (success) {
+        accessSwitches.add(dpid.toString());
+        //}
         
-        loggerREST.info("The switch {} is now an access switch.", dpid);
+        loggerREST.info("The switch {} is now an access switch. List: \n", dpid);
+        
         return "Access switch added";
  }
 
