@@ -74,7 +74,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     private IFloodlightProviderService floodlightProvider;
     private IRestApiService restApiService;
 	private IDeviceService deviceManagerService; //Reference to the device manager
-	private IRoutingService routingService;
+	private static IRoutingService routingService;
     private IOFSwitchService switchService;
 
     // Default virtual IP and MAC addresses of the server
@@ -298,7 +298,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
      * @return             the shortest path, if at least one path exists between the endpoints,
      *                     null otherwise.
      */
-    private Path getShortestPath(DatapathId startSwitch, SwitchPort[] endSwitches) {
+     public static Path getShortestPath(DatapathId startSwitch, SwitchPort[] endSwitches) {
         Path shortestPath = null;
 
         for (SwitchPort endSwitch : endSwitches) {

@@ -55,10 +55,15 @@ import org.projectfloodlight.openflow.protocol.oxm.OFOxms;
 import org.projectfloodlight.openflow.types.*;
 import org.python.google.common.collect.ImmutableList;
 import org.python.google.common.collect.Maps;
+import org.restlet.routing.Route;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+
+/*********************************************************/
+import it.unipi.floodlightcontroller.distributedbroker.*;
+/*********************************************************/
 
 public class Forwarding extends ForwardingBase implements IFloodlightModule, IOFSwitchListener, ILinkDiscoveryListener,
         IRoutingDecisionChangedListener, IGatewayService {
@@ -1254,48 +1259,69 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
             log.debug("No broadcast ports found. Using FLOOD output action");
             broadcastPorts = Collections.singleton(OFPort.FLOOD);
         }
+        
+        /*******************************************************************************************************************/
+        Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+        IPacket packet = ethernetFrame.getPayload(); 
+        
+        if(packet instanceof IPv4) {
+            IPv4 ipPacket = (IPv4) packet;
+        	log.info("destination doFlood: {}", ipPacket.getDestinationAddress());
+        	log.info("source doFlood: {}", ipPacket.getSourceAddress());
+        
+        	IDevice dstDev = deviceManagerService.findDevice(
+					ethernetFrame.getDestinationMACAddress(), 
+					VlanVid.ZERO, 
+					IPv4Address.NONE, 
+					IPv6Address.NONE, 
+					DatapathId.NONE, 
+					OFPort.ZERO
+				);
+        	            	
+        	if(dstDev != null) {
+            	log.info("dstDev doFlood: {}", dstDev.toString());
+        	} else {
+        		log.info("No device found");
+        		return;
+        	}
+        	
+        	SwitchPort[] ports = dstDev.getAttachmentPoints();
+        	Path shortestPath = it.unipi.floodlightcontroller.distributedbroker.DistributedMessageBroker.getShortestPath(sw.getId(), ports);
 
-        for (OFPort p : broadcastPorts) {
-
-        	/*******************************************************************************************************************/
-            Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-            IPacket packet = ethernetFrame.getPayload(); 
-            
-            if(packet instanceof IPv4) {
-                IPv4 ipPacket = (IPv4) packet;
-            	log.info("destination doFlood: {}", ipPacket.getDestinationAddress());
-            	log.info("source doFlood: {}", ipPacket.getSourceAddress());
-            
-            	IDevice dstDev = deviceManagerService.findDevice(
-    					ethernetFrame.getDestinationMACAddress(), 
-    					VlanVid.ZERO, 
-    					IPv4Address.NONE, 
-    					IPv6Address.NONE, 
-    					DatapathId.NONE, 
-    					OFPort.ZERO
-    				);
-            	
-            	if(dstDev != null) {
-                	log.info("dstDev doFlood: {}", dstDev.toString());
-            	} else {
-            		log.info("No device found");
-            		return;
-            	}
-            	            	
-            	SwitchPort[] ports = dstDev.getAttachmentPoints();
-            	
-            	for(SwitchPort port : ports) {
-            		if(port.getNodeId().compareTo(sw.getId()) == 0) {      			
+			OFPort outputPort = shortestPath.getPath().get(1).getPortId();
+			log.info("Output port: {}", outputPort.toString());
+			
+			List<NodePortTuple> selectedPath = shortestPath.getPath();
+        	
+        	for(NodePortTuple node : selectedPath) {
+        		log.info("Node: {}", node.toString());
+        	}
+        	
+        	if(((IPv4) packet).getProtocol().equals(IpProtocol.UDP)) {
+        		log.info("PACCHETTO UDP");
+        		actions.add(sw.getOFFactory().actions().output(outputPort, Integer.MAX_VALUE));
+        	}
+        	
+        } else {
+	        for (OFPort p : broadcastPorts) {
+        		// flood normale
+    			if(p.compareTo(inPort) == 0) continue;
+                actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
+        	
+	        	/*
+	        	for(SwitchPort port : ports) {
+	        		if(port.getNodeId().compareTo(sw.getId()) == 0) {      			
 	            		log.info("portID giusto: {}", port.getPortId());
 	            		if(p.compareTo(port.getPortId()) == 0) {
 	            			log.info("QUI DEVO INVIARE");
 	                        actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
 	            		}
-            		} else {
-            			if(p.compareTo(inPort) == 0) continue;
-                        actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
-            		}
-            	}
+	        		} else {
+	        			if(p.compareTo(inPort) == 0) continue;
+	                    actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
+	        		}
+	        	}
+	        	*/
             	/*******************************************************************************************************************/
             }
         }
