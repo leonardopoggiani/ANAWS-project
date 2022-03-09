@@ -9,19 +9,21 @@ header = {"Content-type": "application/json", "Accept": "text/plain"}
 url_resources = base_url + "resources/json"
 url_subscribers = base_url + "/subscribers/{resource}/json"
 
-# Users
+# Create 3 resources
 print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
 print(requests.post(url_resources, json.dumps({}), headers=header).json())
 print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
 
-# Servers
+# Subscribe host to resources
 print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.1", "MAC": "00:00:00:00:00:01"}), headers=header).json())
-print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.2", "MAC": "00:00:00:00:00:02"}), headers=header).json())
-print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.5", "MAC": "00:00:00:00:00:05"}), headers=header).json())
+print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.2", "MAC": "00:00:00:00:00:02"}), headers=header).json())
+print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.3", "MAC": "00:00:00:00:00:03"}), headers=header).json())
+print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.4", "MAC": "00:00:00:00:00:04"}), headers=header).json())
+print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address": "10.0.0.5", "MAC": "00:00:00:00:00:05"}), headers=header).json())
+print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address": "10.0.0.6", "MAC": "00:00:00:00:00:06"}), headers=header).json())
 
-print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.3", "MAC": "00:00:00:00:00:03"}), headers=header).json())
-
-#Access switches
+# Add access switches
 print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:01"}), headers=header).json())
 print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:02"}), headers=header).json())
+print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:03"}), headers=header).json())
 
