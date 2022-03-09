@@ -191,6 +191,24 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return accessSwitches.contains(sw);
     }
 	
+	/**
+     * Checks if the switch identified by the given DPID is registered as an access switch.
+     * @param sw  the DPID of the switch.
+     * @return    true if the DPID identifies an access switch, false otherwise.
+     */
+	private boolean isSubscriber(IPv4Address resourceIpAddress, MacAddress subscriberMac) {
+        if(!resources.containsKey(resourceIpAddress)) {
+        	logger.info("Resource {} doesn't exist", resourceIpAddress.toString());
+        	return false;
+        }
+        if(resourceSubscribers.get(resourceIpAddress).containsKey(subscriberMac)){
+        	logger.info("Subscriber {} doesn't exist", subscriberMac.toString());
+        	return false;
+        }
+        return true;		
+		
+    }
+	
 	 
 
 	private Command handleIpPacket(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
@@ -206,14 +224,12 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
         // The packet is a request to a resource from a user.
-        if (isAccessSwitch(sw.getId().toString()) && isResourceAddress(destinationMAC, destinationIP) ) {
+        if (isResourceAddress(destinationMAC, destinationIP) ) {
             logger.info("The packet is a message to a resource.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
         }
         
-        // The packet is transiting through the network.
-        logger.info("The packet is transiting through the network.");
         return Command.CONTINUE;
 	}
 	
@@ -656,9 +672,14 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
  }
 
 	@Override
-	public String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP) {
-		// TODO Auto-generated method stub
-		return null;
+	public String removeSubscription(IPv4Address resource_address, MacAddress userMac) {
+		if(isSubscriber(resource_address, userMac)) {
+			 loggerREST.info("Removed subscriber {}", userMac);
+	            resourceSubscribers.get(resource_address).remove(userMac);
+	            return "Subscriber removed";
+		}
+		loggerREST.info("The subscriber or the resource don't exist");
+    	return "Subscriber or resource not found";
 	}
 
 	@Override
@@ -666,14 +687,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		 loggerREST.info("Received request for the cancellation of the access switch {}", dpid);
 
 	        if (isAccessSwitch(dpid.toString())) {
-	            /*
-	             *  It is not necessary to check if the operation on the priority succeeded: if the
-	             *  switch is not connected to the network, its flow table will be automatically flushed
-	             *  at the next handshake with the controller.
-	             */
 	        	
 	            loggerREST.info("Removed access switch {}", dpid);
-	            accessSwitches.remove(dpid);
+	            accessSwitches.remove(dpid.toString());
 	            return "Access switch removed";
 	        }
 	        loggerREST.info("The switch {} is not an access switch", dpid);

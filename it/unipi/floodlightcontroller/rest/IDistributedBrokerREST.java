@@ -18,12 +18,12 @@ public interface IDistributedBrokerREST extends IFloodlightService {
 	String createResource();
 
 	String subscribeResource(IPv4Address resource_address, IPv4Address USER_IP, MacAddress MAC);
-	
-	String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP);
 
 	 Set<String> getAccessSwitches();
-
+	
 	 String addAccessSwitch(DatapathId dpid);
-
+	
 	 String removeAccessSwitch(DatapathId dpid);
+
+	String removeSubscription(IPv4Address resource_address, MacAddress userMac);
 }
