@@ -20,20 +20,16 @@ import org.projectfloodlight.openflow.protocol.action.OFAction;
 import org.projectfloodlight.openflow.protocol.action.OFActionOutput;
 import org.projectfloodlight.openflow.protocol.action.OFActionSetField;
 import org.projectfloodlight.openflow.protocol.action.OFActions;
-import org.projectfloodlight.openflow.protocol.match.Match;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.protocol.oxm.OFOxms;
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv6Address;
-import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TableId;
-import org.projectfloodlight.openflow.types.TransportPort;
-import org.projectfloodlight.openflow.types.U64;
 import org.projectfloodlight.openflow.types.VlanVid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,15 +51,12 @@ import net.floodlightcontroller.devicemanager.IDeviceService;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
-import net.floodlightcontroller.packet.ICMP;
 import net.floodlightcontroller.packet.IPacket;
 import net.floodlightcontroller.packet.IPv4;
-import net.floodlightcontroller.packet.TCP;
-import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Path;
-import net.floodlightcontroller.util.FlowModUtils;
+
 
 public class DistributedMessageBroker implements IOFMessageListener, IFloodlightModule, IDistributedBrokerREST {
 	
@@ -79,10 +72,9 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
     // Default virtual IP and MAC addresses of the server
 	private final static MacAddress SERVER_MAC =  MacAddress.of("00:00:00:00:00:FE");
-	private final static IPv4Address SERVER_IP =  IPv4Address.of("8.8.8.8");
-
-	private final int IDLE_TIMEOUT = 5;
-    private final int HARD_TIMEOUT = 10;
+	
+	//private final int IDLE_TIMEOUT = 5;
+    //private final int HARD_TIMEOUT = 10;
     
 	// <ip virtuale, int> -> <1.1.1.1, 1>, <1.1.1.2, 2> ...
     private final Map<IPv4Address, Integer>  resources = new HashMap<>();
@@ -97,8 +89,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
   	
 	// Access switches.
     private final Set<String> accessSwitches = new HashSet<>();
-    
-    private final int ACCESS_SWITCH_DEFAULT_RULE_PRIORITY = 10;
+   
 
     
 	@Override
@@ -175,70 +166,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		return false;
     }
 	
-	private boolean isSubscriberCompleteAddress(MacAddress addressMAC, IPv4Address addressIP) {
-		
-		logger.info("Source MAC: {} ,source IP: {}", addressMAC, addressIP);
-		
-		for (Entry<IPv4Address, HashMap<MacAddress, IPv4Address>> resource : resourceSubscribers.entrySet()) {
-			
-			HashMap<MacAddress, IPv4Address> list = resource.getValue();
-			
-			for (Entry<MacAddress, IPv4Address> subscriber : list.entrySet() ) {
-				logger.info("subscriber MAC: {} ,subscriber IP: {}", subscriber.getKey(), subscriber.getValue());
-				
-				if( (subscriber.getKey().compareTo(addressMAC) == 0) && (subscriber.getValue().compareTo(addressIP) == 0) ) {
-					logger.info("Subscriber found");
-					return true;
-				}
-			}
-		}
-		
-		return false;
-			
-    }
 	
-	 /**
-     * Changes the priority of the default rule of a switch, for each actually used flow table.
-     * @param switchDPID  the DPID of the target switch.
-     * @param priority    the new priority of the default rule.
-     * @return            true if the target switch is connected to the network and
-     *                    the flow mod is sent, false otherwise.
-     */
-	private boolean changePriorityOfDefaultRule(DatapathId switchDPID, int priority) {
-        IOFSwitch targetSwitch = (IOFSwitch) switchService.getSwitch(switchDPID);
-        
-        if (targetSwitch == null) {
-            logger.error("Cannot modify the priority of the default rule of switch {}. " +
-                                 "The switch is not connected to the network", switchDPID);
-            return false;
-        }
-        // Remove the default rule in every table.
-        OFFlowDeleteStrict deleteDefaultRule = targetSwitch.getOFFactory().buildFlowDeleteStrict()
-                .setTableId(TableId.ALL)
-                .setOutPort(OFPort.CONTROLLER)
-                .build();
-        targetSwitch.write(deleteDefaultRule);
-        /*
-         *  Insert a new default rule in every table. The insertion is done only in the tables
-         *  that are effectively used by the switch, which is told by getMaxTableForTableMissFlow().
-         */
-        ArrayList<OFAction> outputToController = new ArrayList<>(1);
-        ArrayList<OFMessage> addDefaultRules = new ArrayList<>();
-        outputToController.add(targetSwitch.getOFFactory().actions().output(OFPort.CONTROLLER, 0xffFFffFF));
-        for (int tableId = 0; tableId <= ((IOFSwitchBackend) targetSwitch).getMaxTableForTableMissFlow().getValue(); tableId++) {
-            OFFlowAdd addDefaultRule = targetSwitch.getOFFactory().buildFlowAdd()
-                    .setTableId(TableId.of(tableId))
-                    .setPriority(priority)
-                    .setActions(outputToController)
-                    .build();
-            addDefaultRules.add(addDefaultRule);
-        }
-        targetSwitch.write(addDefaultRules);
-
-        logger.info("The priority of the default rule of switch {} has been set to {}.",
-                    switchDPID, priority);
-        return true;
-    }
+	
 	
 	
 	 /**
@@ -262,7 +191,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return accessSwitches.contains(sw);
     }
 	
-
 	 
 
 	private Command handleIpPacket(IOFSwitch sw, OFPacketIn packetIn, Ethernet ethernetFrame, IPv4 ipPacket) {
@@ -406,41 +334,14 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 								
 				// The output port of the current switch is specified by the second element of the path.
 				OFPort outputPort = shortestPath.getPath().get(1).getPortId();
-		        
-		        OFActions actions = sw.getOFFactory().actions();
 		        // Create the actions (Change DST mac and IP addresses and set the out-port)
 		        ArrayList<OFAction> actionList = new ArrayList<OFAction>();
 		        
-		        OFOxms oxms = sw.getOFFactory().oxms();
-
-		        OFActionSetField setDlDst = actions.buildSetField()
-		        	    .setField(
-		        	        oxms.buildEthDst()
-		        	        .setValue(MacAddress.of(subscriber.getKey()))
-		        	        .build()
-		        	    )
-		        	    .build();
-		        actionList.add(setDlDst);
-
-		        OFActionSetField setNwDst = actions.buildSetField()
-		        	    .setField(
-		        	        oxms.buildIpv4Dst()
-		        	        .setValue(IPv4Address.of(subscriber.getValue()))
-		        	        .build()
-		        	    ).build();
-		        actionList.add(setNwDst);
-		        
-		        OFActionOutput output = actions.buildOutput()
-		        	    .setMaxLen(0xFFffFFff)
-		        	    .setPort(outputPort)
-		        	    .build();
-		        actionList.add(output);
-		        
+		        actionList = translateDestinationAddressIntoReal(sw, subscriber.getKey(), subscriber.getValue(), outputPort);
 				// Create the Packet-Out and set basic data for it (buffer id and in port)
 				OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
 				pob.setBufferId(packetIn.getBufferId());
 				pob.setInPort(OFPort.ANY);
-				
 				// Assign the action
 				pob.setActions(actionList);
 				
@@ -461,19 +362,19 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		}
 	}
 	
-	/*private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, MacAddress serverMAC,
-            IPv4Address serverIP, OFPort outputPort) {
+	private ArrayList<OFAction> translateDestinationAddressIntoReal(IOFSwitch sw, String subscriberMAC,
+            String subscriberIP, OFPort outputPort) {
 		
 		OFOxms oxmsBuilder = sw.getOFFactory().oxms();
 		OFActions actionBuilder = sw.getOFFactory().actions();
 		ArrayList<OFAction> actionList = new ArrayList<>();
 		
 		OFActionSetField setMACDestination = actionBuilder.buildSetField()
-		.setField(oxmsBuilder.buildEthDst().setValue(serverMAC).build())
+		.setField(oxmsBuilder.buildEthDst().setValue(MacAddress.of(subscriberMAC)).build())
 		.build();
 		
 		OFActionSetField setIPDestination = actionBuilder.buildSetField()
-		.setField(oxmsBuilder.buildIpv4Dst().setValue(serverIP).build())
+		.setField(oxmsBuilder.buildIpv4Dst().setValue(IPv4Address.of(subscriberIP)).build())
 		.build();
 		
 		OFActionOutput output = actionBuilder.buildOutput()
@@ -487,7 +388,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		
 		return actionList;
 	}
-	*/
+	
+	
 	private IPacket createArpReplyForServer(Ethernet ethernetFrame, ARP arpRequest, IPv4Address resource_virtual_address) {
 		logger.info("Sender MAC: {}",arpRequest.getSenderHardwareAddress());
 		logger.info("Sender IP: {}",arpRequest.getSenderProtocolAddress());
@@ -769,7 +671,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	             *  switch is not connected to the network, its flow table will be automatically flushed
 	             *  at the next handshake with the controller.
 	             */
-	        	//TODO qualcosa sulla priorità
+	        	
 	            loggerREST.info("Removed access switch {}", dpid);
 	            accessSwitches.remove(dpid);
 	            return "Access switch removed";
