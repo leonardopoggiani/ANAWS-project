@@ -25,8 +25,7 @@ print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address
 #print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.1", "MAC": "00:00:00:00:00:01"}), headers=header).json())
 #print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address": "10.0.0.6", "MAC": "00:00:00:00:00:06"}), headers=header).json())
 
-# Add access switches
-print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:01"}), headers=header).json())
-print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:02"}), headers=header).json())
-print(requests.post(base_url + "/access-switches/json", json.dumps({"dpid":"00:00:00:00:00:00:01:03"}), headers=header).json())
+print(requests.delete(base_url + "/subscribers/1.1.1.1/json", json.dumps({"MAC": "00:00:00:00:00:01"}), headers=header).json())
+
+
 
