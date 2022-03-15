@@ -13,6 +13,7 @@ url_subscribers = base_url + "/subscribers/{resource}/json"
 print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
 print(requests.post(url_resources, json.dumps({}), headers=header).json())
 print(requests.post(url_resources, data=json.dumps({}), headers=header).json())
+print(requests.post(url_resources,data=json.dumps({}), headers=header).json())
 
 # Subscribe host to resources
 print(requests.post(base_url + "/subscribers/1.1.1.1/json", json.dumps({"address": "10.0.0.1", "MAC": "00:00:00:00:00:01"}), headers=header).json())
@@ -25,7 +26,9 @@ print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address
 #print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.1", "MAC": "00:00:00:00:00:01"}), headers=header).json())
 #print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address": "10.0.0.6", "MAC": "00:00:00:00:00:06"}), headers=header).json())
 
-print(requests.delete(base_url + "/subscribers/1.1.1.1/json", json.dumps({"MAC": "00:00:00:00:00:01"}), headers=header).json())
+#print(requests.delete(base_url + "/subscribers/1.1.1.1/json", data=json.dumps({"MAC": "00:00:00:00:00:01"}), headers=header).json())
 
+#print(requests.delete(base_url + "/resources/json", data=json.dumps({"resource":"1.1.1.1"}), headers=header).json())
 
+#print(requests.delete(base_url + "/resources/json", data=json.dumps({"resource":"1.1.1.4"}), headers=header).json())
 
