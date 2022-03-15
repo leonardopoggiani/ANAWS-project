@@ -154,12 +154,12 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 		restApiService.addRestletRoutable(new DistributedBrokerWebRoutable());
 	}
 	 
-	private boolean isResourceAddress(MacAddress addressMAC, IPv4Address addressIP) {
+	private boolean isResourceAddress(IPv4Address addressIP) {
 		for (Map.Entry<IPv4Address, Integer> resource : resources.entrySet()) {
         	if (addressIP.compareTo(resource.getKey()) == 0) {
-        		if(addressMAC.compareTo(SERVER_MAC) == 0) {
+        		
         			return true;
-        		}
+        		
         	}
         }
 		
@@ -224,7 +224,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         loggerREST.info("AccessSwitches: " + accessSwitches.toString());
 
         // The packet is a request to a resource from a user.
-        if (isResourceAddress(destinationMAC, destinationIP) ) {
+        if (isResourceAddress(destinationIP) ) {
             logger.info("The packet is a message to a resource.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
@@ -628,24 +628,6 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         return "Subscription successful";
 	}
 	
-	
-	// to delete or review
-	/*
-	public String removeSubscription(IPv4Address resource_address, IPv4Address USER_IP) {
-		
-		loggerREST.info("Received request for delete the subscription of {}, with IP \"{}\".",
-				USER_IP);
-
-		// Check if the username is present.
-        for(Map.Entry<MacAddress, IPv4Address> resourceSub : resourceSubscribers.get(resource_address).entrySet()) {
-        	if(resourceSub.getValue().equals(USER_IP))
-        		resourceSubscribers.get(resource_address).remove(resourceSub);
-				return "User removed from the resource";
-        }
-		
-        return "User removed successfully";
-	}
-	*/
 
 	@Override
 	public Set<String> getAccessSwitches() {
@@ -695,5 +677,23 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	        loggerREST.info("The switch {} is not an access switch", dpid);
 	    	return "Access switch not found";
 	    }
+
+	@Override
+	public String removeResource(IPv4Address resourceIpv4) {
+		loggerREST.info("Received request for the cancellation of the resource {}", resourceIpv4);
+		 
+		if(isResourceAddress(resourceIpv4))
+		{
+			loggerREST.info("Removed server {}", resources.get(resourceIpv4).toString());
+			resources.remove(resourceIpv4);
+			resourceSubscribers.remove(resourceIpv4);
+			return "Resource removed";
+			
+		}
+		
+		 loggerREST.info("Impossible to remove the resource {}: the server is not present.", resourceIpv4);
+		 return "Resource not found";
+    	
 	}
+}
 
