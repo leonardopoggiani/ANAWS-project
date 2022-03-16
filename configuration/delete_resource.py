@@ -12,14 +12,13 @@ url_subscribers = base_url + "/subscribers/{resource}/json"
 while(True)
     action = input("1) Delete resource\n 2)Unsubscribe user\n ")
 
-    match action:
-        case "1":
-            resourceIP = input("Insert the resource virtual ip")
-            print(requests.delete(url_resources, data=json.dumps({"resource": str(resourceIP)}), headers=header).json())
-        case "2":
-            resourceIP = input("Insert the resource virtual ip")
-            userMAC = input("Insert user MAC")
-            print(requests.delete(base_url + "/subscribers/" + str(resourceIP) + "/json", data=json.dumps({"MAC": str(userMAC)}), headers=header).json())
-        case _:
-            print("Invalid choice")
+    if action == "1":
+        resourceIP = input("Insert the resource virtual ip")
+        print(requests.delete(url_resources, data=json.dumps({"resource": str(resourceIP)}), headers=header).json())
+    else if action == "2":
+        resourceIP = input("Insert the resource virtual ip")
+        userMAC = input("Insert user MAC")
+        print(requests.delete(base_url + "/subscribers/" + str(resourceIP) + "/json", data=json.dumps({"MAC": str(userMAC)}), headers=header).json())
+    else:
+        print("Invalid choice")
             
