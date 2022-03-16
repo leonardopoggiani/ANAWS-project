@@ -55,19 +55,14 @@ import org.projectfloodlight.openflow.protocol.oxm.OFOxms;
 import org.projectfloodlight.openflow.types.*;
 import org.python.google.common.collect.ImmutableList;
 import org.python.google.common.collect.Maps;
-import org.restlet.routing.Route;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 
-/*********************************************************/
-import it.unipi.floodlightcontroller.distributedbroker.ResourceAddress;;
-/*********************************************************/
-
-public class Forwarding extends ForwardingBase implements IFloodlightModule, IOFSwitchListener, ILinkDiscoveryListener,
+public class DefaultForwarding extends ForwardingBase implements IFloodlightModule, IOFSwitchListener, ILinkDiscoveryListener,
         IRoutingDecisionChangedListener, IGatewayService {
-    protected static final Logger log = LoggerFactory.getLogger(Forwarding.class);
+    protected static final Logger log = LoggerFactory.getLogger(DefaultForwarding.class);
 
     /*
      * Cookies are 64 bits:
@@ -360,7 +355,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
      * @param requestFlowRemovedNotifn
      */
     protected void doL3ForwardFlow(IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx,
-                                   VirtualGatewayInstance gateway, boolean requestFlowRemovedNotifn) {    	
+                                   VirtualGatewayInstance gateway, boolean requestFlowRemovedNotifn) {
         Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
         OFPort srcPort = OFMessageUtils.getInPort(pi);
 
@@ -617,41 +612,8 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
      */
     protected void doL2Forwarding(Ethernet eth, IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx) {
         if (isBroadcastOrMulticast(eth)) {
-        	log.info("FLOODING");
-        	
-        	/***********************************************/
-            Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-            IPacket packet = ethernetFrame.getPayload(); 
-            
-            log.info(packet.getClass().getName());
-            MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-            log.info("Source: {}", sourceMAC);
-
-        	/***********************************************/
-            
             doFlood(sw, pi, decision, cntx);
         } else {
-        	log.info("FORWARDING");
-        	
-        	/***********************************************/
-            Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-            IPacket packet = ethernetFrame.getPayload(); 
-            
-            if (packet instanceof IPv4) {
-                
-	            IPv4 ipPacket = (IPv4) packet;
-	            
-	            MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-	            MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
-	            IPv4Address sourceIP = ipPacket.getSourceAddress();
-	            IPv4Address destinationIP = ipPacket.getDestinationAddress();
-	
-	            log.info("Switch: {}", sw.getId());
-	            log.info("Source: {}, {}", sourceMAC, sourceIP);
-	            log.info("Destination: {}, {}", destinationMAC, destinationIP);
-            }
-        	/***********************************************/
-        	
             doL2ForwardFlow(sw, pi, decision, cntx, false);
         }
     }
@@ -673,21 +635,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 
         if (dstDevice == null) {
             log.debug("Destination device unknown. Flooding packet");
-            log.info("srcSw: {} \n", srcSw.toString());
-            
-            if(decision != null) {
-            	List<IDevice> devices = decision.getDestinationDevices();
-                for(IDevice dev : devices) {
-                	log.info("Dev: {}", dev.toString());
-                	SwitchPort[] ports = dev.getAttachmentPoints();
-                	for(SwitchPort port : ports) {
-                		log.info("port: {}", port.toString());
-                	}
-                }
-            } else {
-            	log.info("decision e' null ora va a capire perche'");
-            }
-            
             doFlood(sw, pi, decision, cntx);
             return;
         }
@@ -1254,71 +1201,15 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
         OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
         List<OFAction> actions = new ArrayList<>();
         Set<OFPort> broadcastPorts = this.topologyService.getSwitchBroadcastPorts(sw.getId());
-        
+
         if (broadcastPorts.isEmpty()) {
             log.debug("No broadcast ports found. Using FLOOD output action");
             broadcastPorts = Collections.singleton(OFPort.FLOOD);
         }
-        
-        /*******************************************************************************************************************/
-        Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-        IPacket packet = ethernetFrame.getPayload(); 
-        
-        if(packet instanceof IPv4) {
-            IPv4 ipPacket = (IPv4) packet;
-        	log.info("destination doFlood: {}", ipPacket.getDestinationAddress());
-        	log.info("source doFlood: {}", ipPacket.getSourceAddress());
-        
-        	IDevice dstDev = deviceManagerService.findDevice(
-					ethernetFrame.getDestinationMACAddress(), 
-					VlanVid.ZERO, 
-					IPv4Address.NONE, 
-					IPv6Address.NONE, 
-					DatapathId.NONE, 
-					OFPort.ZERO
-				);
-        	            	
-        	if(dstDev != null) {
-            	log.info("dstDev doFlood: {}", dstDev.toString());
-        	} else {
-        		log.info("No device found");
-        		return;
-        	}
-        	
-        	SwitchPort[] ports = dstDev.getAttachmentPoints();
-        	Path shortestPath = it.unipi.floodlightcontroller.distributedbroker.DistributedMessageBroker.getShortestPath(sw.getId(), ports);
 
-			OFPort outputPort = shortestPath.getPath().get(1).getPortId();
-			log.info("Output port: {}", outputPort.toString());
-			
-			List<NodePortTuple> selectedPath = shortestPath.getPath();
-        	
-        	if(((IPv4) packet).getProtocol().equals(IpProtocol.UDP)) {
-        		log.info("UDP packet");
-        		actions.add(sw.getOFFactory().actions().output(outputPort, Integer.MAX_VALUE));
-        	}
-        	
-        } else {
-        	if(packet instanceof ARP) {
-        		ARP arpRequest = (ARP) packet;
-        		log.info("Processing an ARP request [FORWARDING].");
-        		log.info("Switch: {}", sw.getId());
-        		log.info("Source: {}", ethernetFrame.getSourceMACAddress());
-        		log.info("Destination: {}", ethernetFrame.getDestinationMACAddress());
-        		log.info(" Destination IP: {}", arpRequest.getTargetProtocolAddress());   
-        		
-        		if(!ResourceAddress.isResourceAddress(arpRequest.getTargetProtocolAddress())) {
-            		log.info("ARP to a host, denied.");
-            		return;
-        		}
-        	}
-        	
-        	// proceed with the normal flood
-	        for (OFPort p : broadcastPorts) {
-    			if(p.compareTo(inPort) == 0) continue;
-                actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
-            	/*******************************************************************************************************************/
-            }
+        for (OFPort p : broadcastPorts) {
+            if (p.equals(inPort)) continue;
+            actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
         }
         pob.setActions(actions);
 
