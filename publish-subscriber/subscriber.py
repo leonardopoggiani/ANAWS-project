@@ -33,5 +33,5 @@ sock.bind((UDP_IP, UDP_PORT))
 while True:
     data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
     print("********************")
-    print("Receiving from subscribed resource: %s" % data)
+    print("Receiving from  "+ str(addr) + ":" + str(data))
     print("********************")
