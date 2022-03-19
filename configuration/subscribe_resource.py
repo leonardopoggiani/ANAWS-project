@@ -23,7 +23,6 @@ print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address
 # )
 
 print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.4", "MAC": "00:00:00:00:00:04"}), headers=header).json())
-print(requests.post(base_url + "/subscribers/1.1.1.2/json", json.dumps({"address": "10.0.0.4", "MAC": "00:00:00:00:00:04"}), headers=header).json())
 
 # resource 1.1.1.3
 print(requests.post(base_url + "/subscribers/1.1.1.3/json", json.dumps({"address": "10.0.0.5", "MAC": "00:00:00:00:00:05"}), headers=header).json())

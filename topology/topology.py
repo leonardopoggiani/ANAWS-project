@@ -62,6 +62,8 @@ def run():
     s3.start([c1])
     s4.start([c1])
 
+    # net.plotGraph(max_x=100, max_y=100)
+
     CLI( net )
 
     net.stop()
