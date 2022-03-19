@@ -8,7 +8,7 @@ MESSAGE = b"Hello, World!"
 print("********************")
 print("UDP target IP: %s" % sys.argv[1])
 print("UDP target port: %s" % UDP_PORT)
-print("message: %s" % MESSAGE)
+print("Publishing: %s" % MESSAGE)
 print("********************")
 
 # send message to the target ip
