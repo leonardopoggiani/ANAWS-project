@@ -8,9 +8,10 @@ base_url = "http://" + controller_ip + "/db/"
 header = {"Content-type": "application/json", "Accept": "text/plain"}
 
 url_resources = base_url + "resources/json"
-if len(sys.arg) < 1
+howManyArgument = len(sys.argv)
+if howManyArgument < 1
     print("Insert the ip address of the resource as argument\n")
-elif len(sys.arg) > 1
+elif howManyArgument > 1
     print("Too many arguments, just enter the ip address of the resource\n")
 else
     resourceIP = sys.argv[1]
