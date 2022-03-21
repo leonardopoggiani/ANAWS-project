@@ -1,5 +1,6 @@
 import requests
 import json
+import sys
 from time import sleep
 
 controller_ip = "192.168.122.1:8080"
@@ -8,6 +9,8 @@ header = {"Content-type": "application/json", "Accept": "text/plain"}
 
 url_resources = base_url + "resources/json"
 url_subscribers = base_url + "/subscribers/{resource}/json"
+resourceIP = sys.argv[1]
+subscriberMAC = sys.argv[2]
 
 while(True):
     action = input("1) Delete resource\n2)Unsubscribe user\n ")
