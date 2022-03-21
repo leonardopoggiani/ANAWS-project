@@ -45,7 +45,7 @@ public class Subscriber extends ServerResource {
 			String user_address;
 			String MAC;
 			try {
-				user_address = root.get("address").asText();
+				user_address = root.get("IPaddress").asText();
 				MAC = root.get("MAC").asText();
 			} catch (IllegalArgumentException e) {
 				result.put("message", "Invalid format");
