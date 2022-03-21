@@ -9,11 +9,12 @@ header = {"Content-type": "application/json", "Accept": "text/plain"}
 
 url_resources = base_url + "resources/json"
 howManyArgument = len(sys.argv)
-if howManyArgument < 1
+
+if howManyArgument < 2:
     print("Insert the ip address of the resource as argument\n")
-elif howManyArgument > 1
+elif howManyArgument > 2:
     print("Too many arguments, just enter the ip address of the resource\n")
-else
+else:
     resourceIP = sys.argv[1]
-    print(requests.delete(url_resources, data=json.dumps({"resource": '"' + str(resourceIP) + '"'}), headers=header).json())
+    print(requests.delete(url_resources, data=json.dumps({"resource":   str(resourceIP)  }), headers=header).json())
    
