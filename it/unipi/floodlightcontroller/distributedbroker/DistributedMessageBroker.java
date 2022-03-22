@@ -400,6 +400,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 
         // Create action: send the packet back from the source port.
         OFActionOutput.Builder actionBuilder = sw.getOFFactory().actions().buildOutput();
+        logger.info("ARP port: {}", packetIn.getMatch().get(MatchField.IN_PORT));
         OFPort inPort = packetIn.getMatch().get(MatchField.IN_PORT);
         actionBuilder.setPort(inPort);
 

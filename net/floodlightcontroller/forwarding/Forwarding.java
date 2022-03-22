@@ -55,14 +55,13 @@ import org.projectfloodlight.openflow.protocol.oxm.OFOxms;
 import org.projectfloodlight.openflow.types.*;
 import org.python.google.common.collect.ImmutableList;
 import org.python.google.common.collect.Maps;
-import org.restlet.routing.Route;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 
 /*********************************************************/
-import it.unipi.floodlightcontroller.distributedbroker.ResourceAddress;;
+import it.unipi.floodlightcontroller.distributedbroker.ResourceAddress;
 /*********************************************************/
 
 public class Forwarding extends ForwardingBase implements IFloodlightModule, IOFSwitchListener, ILinkDiscoveryListener,
@@ -616,42 +615,9 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
      * @param cntx The FloodlightContext associated with this OFPacketIn
      */
     protected void doL2Forwarding(Ethernet eth, IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx) {
-        if (isBroadcastOrMulticast(eth)) {
-        	log.info("FLOODING");
-        	
-        	/***********************************************/
-            Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-            IPacket packet = ethernetFrame.getPayload(); 
-            
-            log.info(packet.getClass().getName());
-            MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-            log.info("Source: {}", sourceMAC);
-
-        	/***********************************************/
-            
+        if (isBroadcastOrMulticast(eth)) {     
             doFlood(sw, pi, decision, cntx);
         } else {
-        	log.info("FORWARDING");
-        	
-        	/***********************************************/
-            Ethernet ethernetFrame = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-            IPacket packet = ethernetFrame.getPayload(); 
-            
-            if (packet instanceof IPv4) {
-                
-	            IPv4 ipPacket = (IPv4) packet;
-	            
-	            MacAddress sourceMAC = ethernetFrame.getSourceMACAddress();
-	            MacAddress destinationMAC = ethernetFrame.getDestinationMACAddress();
-	            IPv4Address sourceIP = ipPacket.getSourceAddress();
-	            IPv4Address destinationIP = ipPacket.getDestinationAddress();
-	
-	            log.info("Switch: {}", sw.getId());
-	            log.info("Source: {}, {}", sourceMAC, sourceIP);
-	            log.info("Destination: {}, {}", destinationMAC, destinationIP);
-            }
-        	/***********************************************/
-        	
             doL2ForwardFlow(sw, pi, decision, cntx, false);
         }
     }
@@ -684,8 +650,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
                 		log.info("port: {}", port.toString());
                 	}
                 }
-            } else {
-            	log.info("decision e' null ora va a capire perche'");
             }
             
             doFlood(sw, pi, decision, cntx);
@@ -1290,9 +1254,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 
 			OFPort outputPort = shortestPath.getPath().get(1).getPortId();
 			log.info("Output port: {}", outputPort.toString());
-			
-			List<NodePortTuple> selectedPath = shortestPath.getPath();
-        	
+			        	
         	if(((IPv4) packet).getProtocol().equals(IpProtocol.UDP)) {
         		log.info("UDP packet");
         		actions.add(sw.getOFFactory().actions().output(outputPort, Integer.MAX_VALUE));
@@ -1301,11 +1263,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
         } else {
         	if(packet instanceof ARP) {
         		ARP arpRequest = (ARP) packet;
-        		log.info("Processing an ARP request [FORWARDING].");
-        		log.info("Switch: {}", sw.getId());
-        		log.info("Source: {}", ethernetFrame.getSourceMACAddress());
-        		log.info("Destination: {}", ethernetFrame.getDestinationMACAddress());
-        		log.info(" Destination IP: {}", arpRequest.getTargetProtocolAddress());   
         		
         		if(!ResourceAddress.isResourceAddress(arpRequest.getTargetProtocolAddress())) {
             		log.info("ARP to a host, denied.");
