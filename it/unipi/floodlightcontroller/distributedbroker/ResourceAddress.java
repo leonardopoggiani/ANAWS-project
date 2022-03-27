@@ -13,7 +13,7 @@ public class ResourceAddress {
 	
 	static DistributedMessageBroker broker = new DistributedMessageBroker();
 	
-	public static boolean isResourceAddress(IPv4Address addressIP) {
+	public static boolean queryResources(IPv4Address addressIP) {
 		Set<Entry<IPv4Address, HashMap<MacAddress, IPv4Address>>> resourceSubscribers = broker.getResourceSubcribers().entrySet();
 		for (Entry<IPv4Address, HashMap<MacAddress, IPv4Address>> resource : resourceSubscribers) {
         	if (addressIP.compareTo(resource.getKey()) == 0) {

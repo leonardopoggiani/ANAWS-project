@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 
 import org.projectfloodlight.openflow.protocol.OFMessage;
@@ -50,6 +51,8 @@ import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Path;
 
+import it.unipi.floodlightcontroller.distributedbroker.ResourceAddress;
+
 
 public class DistributedMessageBroker implements IOFMessageListener, IFloodlightModule, IDistributedBrokerREST {
 	
@@ -61,6 +64,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     private IRestApiService restApiService;
 	private IDeviceService deviceManagerService;
 	private static IRoutingService routingService;
+	
+    ResourceAddress queryResources = new ResourceAddress();
 
 	// default virtual address shared by all resources
 	private final static MacAddress SERVER_MAC =  MacAddress.of("00:00:00:00:00:FE");
@@ -140,8 +145,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         }
 		return resourceSubscribers;
 	}
-	 
-	private boolean isResourceAddress(IPv4Address addressIP) {
+	
+	public boolean isResourceAddress(IPv4Address addressIP) {
 		for (Entry<IPv4Address, HashMap<MacAddress, IPv4Address>> resource : resourceSubscribers.entrySet()) {
         	if (addressIP.compareTo(resource.getKey()) == 0) {
         			return true;        		
