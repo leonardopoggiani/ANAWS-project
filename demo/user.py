@@ -54,7 +54,7 @@ class TestUser(object):
     def subscribe_cn(self, resource_ip, sub_ip, sub_mac):
         #  access REST interface /subscribers - POST to add a subscriber to a resource
         rest_addr = self.broker_rest_base_url + "/subscribers/" + resource_ip + "/json"
-        r = requests.post(rest_addr, json.dumps({"address": sub_ip, "MAC": sub_mac}), headers=self.broker_rest_header)
+        r = requests.post(rest_addr, json.dumps({"IPaddress": sub_ip, "MAC": sub_mac}), headers=self.broker_rest_header)
         if (r.status_code == 200):  # success
             print("REST server response: ")
             print(r.text)
@@ -65,7 +65,7 @@ class TestUser(object):
     def get_subscribers (self, resource_ip):
         #  access REST interface /subscribers - GET to retrieve the list of subscribers in a resource
         rest_addr = self.broker_rest_base_url + "/subscribers/" + resource_ip + "/json"
-        #r = requests.get(rest_addr, json.dumps({"address": sub_ip, "MAC": sub_mac}), headers=self.broker_rest_header)
+        #r = requests.get(rest_addr, json.dumps({"IPaddress": sub_ip, "MAC": sub_mac}), headers=self.broker_rest_header)
         r = requests.get(rest_addr, headers=self.broker_rest_header)
         if (r.status_code == 200):  # success
             print("REST server response: ")

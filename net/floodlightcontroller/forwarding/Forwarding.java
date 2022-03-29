@@ -1264,7 +1264,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
         	if(packet instanceof ARP) {
         		ARP arpRequest = (ARP) packet;
         		
-        		if(!ResourceAddress.isResourceAddress(arpRequest.getTargetProtocolAddress())) {
+        		if(!ResourceAddress.queryResources(arpRequest.getTargetProtocolAddress())) {
             		log.info("ARP to a host, denied.");
             		return;
         		}

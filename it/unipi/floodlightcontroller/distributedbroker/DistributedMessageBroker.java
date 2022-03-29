@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 
 import org.projectfloodlight.openflow.protocol.OFMessage;
@@ -50,6 +51,8 @@ import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Path;
 
+import it.unipi.floodlightcontroller.distributedbroker.ResourceAddress;
+
 
 public class DistributedMessageBroker implements IOFMessageListener, IFloodlightModule, IDistributedBrokerREST {
 	
@@ -61,6 +64,8 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
     private IRestApiService restApiService;
 	private IDeviceService deviceManagerService;
 	private static IRoutingService routingService;
+	
+    ResourceAddress queryResources = new ResourceAddress();
 
 	// default virtual address shared by all resources
 	private final static MacAddress SERVER_MAC =  MacAddress.of("00:00:00:00:00:FE");
@@ -140,16 +145,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         }
 		return resourceSubscribers;
 	}
-	 
-	private boolean isResourceAddress(IPv4Address addressIP) {
-		for (Entry<IPv4Address, HashMap<MacAddress, IPv4Address>> resource : resourceSubscribers.entrySet()) {
-        	if (addressIP.compareTo(resource.getKey()) == 0) {
-        			return true;        		
-        	}
-        }
-		
-		return false;
-    }
+	
 
 	private boolean isValidPublisher(MacAddress publisherAddressMAC, IPv4Address resourceIP) {	
 		return !resourceSubscribers.get(resourceIP).containsKey(publisherAddressMAC);
@@ -180,7 +176,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
         logger.info("Destination: {}, {}", destinationMAC, destinationIP);
 
         // The packet is a request to a resource from a user.
-        if (isResourceAddress(destinationIP) ) {
+        if (isResourceIPAddress(destinationIP) ) {
             logger.info("The packet is a message to a resource.");
             handleRequestToResource(sw, packetIn, ethernetFrame, ipPacket);
             return Command.STOP;
@@ -569,7 +565,7 @@ public class DistributedMessageBroker implements IOFMessageListener, IFloodlight
 	public String removeResource(IPv4Address resourceIpv4) {
 		loggerREST.info("Received request for the cancellation of the resource {}", resourceIpv4);
 		 
-		if(isResourceAddress(resourceIpv4))
+		if(isResourceIPAddress(resourceIpv4))
 		{
 			loggerREST.info("Removed server {}", resourceSubscribers.get(resourceIpv4).toString());
 			resourceSubscribers.remove(resourceIpv4);
