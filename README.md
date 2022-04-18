@@ -15,8 +15,8 @@ Repository for the ANAWS project.
 - run the *auto_sensor.py* app on the host h3
 
 The demo starts when the *auto_sensor.py* application is launched and to terminate the execution you can just press CTRL + C on the corresponding terminal.
-The flow of the demo execution is illustraed on the documentation (chapter *Testing*).
+The flow of the demo execution is illustrated on the documentation (chapter *Testing*).
 
 ### Troubleshooting
 
-A possible error may arise when executing the *auto_sensor.py* application because the python package *numpy* may not be installed. In order to install the package just run `pip install numpy` on a terminal of the VM ( not on the terminal of an host! )
+A possible error may arise when executing the *auto_sensor.py* application because the python package *numpy* may not be installed. In order to install the package just run `pip install numpy` on a terminal of the VM ( not on the terminal of an host! ).
